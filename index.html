@@ -206,12 +206,28 @@
 }
 
 
-.user-session{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.user-session .user-name{font-weight:700}
-.user-session .btn-logout{margin:0}
-@media(max-width:700px){
-  .user-session{gap:6px}
+
   .user-session .btn-logout{padding:7px 10px}
+}
+
+
+.user-connected-block{min-width:0}
+.user-connected-block label{display:block;margin-bottom:4px}
+.user-name-row{display:flex;align-items:center;gap:7px}
+.user-name-row #currentUser{min-width:0;flex:1 1 auto}
+.user-name-row #logoutBtn{
+  flex:0 0 auto;
+  height:32px;
+  padding:0 11px;
+  margin:0;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:800;
+  white-space:nowrap
+}
+@media(max-width:700px){
+  .user-name-row{gap:5px}
+  .user-name-row #logoutBtn{padding:0 9px}
 }
 
 </style>
@@ -263,9 +279,12 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
         <div class="sync-box">
-          <div>
-            <label>Usuário conectado</label><br>
-            <div class="user-session"><select id="currentUser" disabled><option>Marcelo</option><option>Dayse</option></select>
+          <div class="user-connected-block">
+            <label>Usuário conectado</label>
+            <div class="user-name-row">
+              <select id="currentUser" disabled><option>Marcelo</option><option>Dayse</option></select>
+              <button class="btn btn-danger btn-logout" id="logoutBtn" type="button">Sair</button>
+            </div>
           </div>
           <div class="update-info">
             <div>Última sincronização: <strong id="lastUpdated">—</strong></div>
@@ -287,7 +306,7 @@
       <button class="btn btn-green" id="addIncome">＋ Receita</button>
       <button class="btn btn-light" id="generateForecast">✦ Gerar previsão</button>
       <button class="btn btn-light" id="reloadFile">↻ Atualizar do banco</button>
-      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button><button class="btn btn-danger" id="logoutBtn">Sair</button></div>
+      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button></div>
       <label class="btn btn-light" style="cursor:pointer">⇧ Importar backup
         <input id="importBackup" type="file" accept=".json" hidden>
       </label>
@@ -414,7 +433,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 5</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 6</div>
   </main>
 </div>
 
