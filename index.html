@@ -230,6 +230,117 @@
   .user-name-row #logoutBtn{padding:0 9px}
 }
 
+
+/* ===== Correção estrutural do layout / sidebar recolhível ===== */
+.app{
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:245px minmax(0,1fr);
+  transition:grid-template-columns .2s ease;
+}
+.sidebar{
+  min-width:0;
+  z-index:20;
+}
+.content{
+  min-width:0;
+  width:100%;
+  overflow-x:hidden;
+}
+.topbar-controls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  min-width:0;
+}
+.brand{
+  position:relative;
+}
+.brand-text{
+  min-width:0;
+}
+.sidebar-toggle{
+  margin-left:auto;
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  border:0;
+  border-radius:9px;
+  background:rgba(255,255,255,.14);
+  color:#fff;
+  font-size:20px;
+  line-height:1;
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+}
+.sidebar-toggle:hover{background:rgba(255,255,255,.22)}
+
+.app.sidebar-collapsed{
+  grid-template-columns:86px minmax(0,1fr);
+}
+.app.sidebar-collapsed .sidebar{
+  padding-left:12px;
+  padding-right:12px;
+}
+.app.sidebar-collapsed .brand{
+  justify-content:center;
+  margin-left:0;
+  margin-right:0;
+}
+.app.sidebar-collapsed .brand-text,
+.app.sidebar-collapsed .nav button span,
+.app.sidebar-collapsed .side-note{
+  display:none;
+}
+.app.sidebar-collapsed .nav button{
+  justify-content:center;
+  padding-left:10px;
+  padding-right:10px;
+}
+.app.sidebar-collapsed .sidebar-toggle{
+  position:absolute;
+  right:-2px;
+  top:-18px;
+  transform:rotate(180deg);
+}
+.app.sidebar-collapsed .brand-badge{
+  margin:0 auto;
+}
+
+/* evita qualquer seção ultrapassar a coluna do conteúdo */
+.content > .section,
+.content > .toolbar,
+.content > .topbar{
+  width:100%;
+  max-width:100%;
+}
+.grid-kpi,
+.panel-grid{
+  min-width:0;
+}
+.kpi,
+.panel{
+  min-width:0;
+}
+
+@media(max-width:1050px){
+  .app{grid-template-columns:86px minmax(0,1fr)}
+  .brand-text,.nav button span,.side-note{display:none}
+  .brand{justify-content:center;margin-left:0;margin-right:0}
+  .nav button{justify-content:center}
+  .sidebar{padding-left:12px;padding-right:12px}
+  .sidebar-toggle{display:none}
+}
+@media(max-width:680px){
+  .app,.app.sidebar-collapsed{display:block}
+  .sidebar{height:auto;position:static;padding:12px}
+  .content{overflow:visible}
+  .topbar-controls{width:100%;justify-content:flex-start}
+}
+
 </style>
 </head>
 <body>
@@ -255,7 +366,8 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-badge">⌂</div>
-      <div><h1>Casa em Dia</h1><small>Finanças familiares</small></div>
+      <div class="brand-text"><h1>Casa em Dia</h1><small>Finanças familiares</small></div>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button" title="Recolher menu" aria-label="Recolher menu">‹</button>
     </div>
     <div class="nav">
       <button class="active" data-section="dashboard">▦ <span>Visão geral</span></button>
@@ -277,7 +389,8 @@
         <h2 id="pageTitle">Visão geral</h2>
         <p>Controle mensal baseado nas suas planilhas de 2025 e 2026.</p>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+
+      <div class="topbar-controls">
         <div class="sync-box">
           <div class="user-connected-block">
             <label>Usuário conectado</label>
@@ -286,12 +399,15 @@
               <button class="btn btn-danger btn-logout" id="logoutBtn" type="button">Sair</button>
             </div>
           </div>
+
           <div class="update-info">
             <div>Última sincronização: <strong id="lastUpdated">—</strong></div>
             <div>Por: <strong id="lastUpdatedBy">—</strong> • <strong id="revisionLabel">Supabase</strong></div>
           </div>
+
           <div id="saveState" class="save-state saved">● Conectando...</div>
         </div>
+
         <div class="month-nav">
           <button id="prevMonth" title="Mês anterior">‹</button>
           <select id="monthSelect"></select>
@@ -306,7 +422,7 @@
       <button class="btn btn-green" id="addIncome">＋ Receita</button>
       <button class="btn btn-light" id="generateForecast">✦ Gerar previsão</button>
       <button class="btn btn-light" id="reloadFile">↻ Atualizar do banco</button>
-      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button></div>
+      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button>
       <label class="btn btn-light" style="cursor:pointer">⇧ Importar backup
         <input id="importBackup" type="file" accept=".json" hidden>
       </label>
@@ -433,7 +549,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 6</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 7</div>
   </main>
 </div>
 
@@ -1234,6 +1350,30 @@ function updateSyncInfo(){
 // Do not use the old embedded/local load routine; Supabase is the source of truth.
 isBooting=true; state={transactions:[],selected:localStorage.getItem("casaEmDia_selectedMonth")||"2026-08"}; meta={lastUpdated:null,updatedBy:null,revision:"Supabase"};
 initAuth();
+
+
+const sidebarToggle=document.getElementById("sidebarToggle");
+const appRoot=document.querySelector(".app");
+
+function setSidebarCollapsed(collapsed){
+  if(!appRoot)return;
+  appRoot.classList.toggle("sidebar-collapsed",collapsed);
+  try{localStorage.setItem("casaSidebarCollapsed",collapsed?"1":"0");}catch(e){}
+  if(sidebarToggle){
+    sidebarToggle.title=collapsed?"Expandir menu":"Recolher menu";
+    sidebarToggle.setAttribute("aria-label",collapsed?"Expandir menu":"Recolher menu");
+  }
+}
+
+if(appRoot && sidebarToggle){
+  let saved=false;
+  try{saved=localStorage.getItem("casaSidebarCollapsed")==="1";}catch(e){}
+  setSidebarCollapsed(saved);
+  sidebarToggle.addEventListener("click",()=>{
+    setSidebarCollapsed(!appRoot.classList.contains("sidebar-collapsed"));
+  });
+}
+
 </script>
 </body>
 </html>
