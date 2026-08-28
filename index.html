@@ -553,7 +553,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 9</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 10</div>
   </main>
 </div>
 
@@ -953,12 +953,43 @@ async function parseItauCardPDF(file){
 
   // Remove exact duplicates that can arise from repeated PDF text layers.
   const seen=new Set();
-  const dedup=rows.filter(r=>{
+  let dedup=rows.filter(r=>{
     r.source_ref=cardPdfSourceRef(r);
     if(seen.has(r.source_ref))return false;
     seen.add(r.source_ref);
     return true;
   });
+
+  // O Itaú repete, no fim da fatura, a PRÓXIMA parcela de algumas compras.
+  // Como a ordem do texto do PDF pode colocar essas linhas antes do título
+  // "Compras parceladas - próximas faturas", filtramos o preview comparando
+  // a mesma compra/data/valor/total de parcelas: fica apenas a menor parcela
+  // encontrada na fatura atual.
+  const installmentMin=new Map();
+  for(const r of dedup){
+    if(!r.installment_number||!r.installment_total)continue;
+    const key=[
+      cardNormalizeMerchant(r.memo),
+      r.date,
+      Number(r.amount||0).toFixed(2),
+      r.installment_total
+    ].join('|');
+    const prev=installmentMin.get(key);
+    if(prev==null||r.installment_number<prev)installmentMin.set(key,r.installment_number);
+  }
+  dedup=dedup.filter(r=>{
+    if(!r.installment_number||!r.installment_total)return true;
+    const key=[
+      cardNormalizeMerchant(r.memo),
+      r.date,
+      Number(r.amount||0).toFixed(2),
+      r.installment_total
+    ].join('|');
+    return r.installment_number===installmentMin.get(key);
+  });
+
+  // Recalculate source refs after filtering.
+  dedup.forEach(r=>r.source_ref=cardPdfSourceRef(r));
 
   return {
     source_format:'pdf',
@@ -970,6 +1001,87 @@ async function parseItauCardPDF(file){
     total_amount:totalAmount,
     rows:dedup
   };
+}
+
+
+function cardNormalizeMerchant(v){
+  return String(v||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase()
+    .replace(/PARCELA\s*\d+\s*\/\s*\d+/g,' ')
+    .replace(/\b\d+\s*\/\s*\d+\b/g,' ')
+    .replace(/-CT\b/g,' ')
+    .replace(/[^A-Z0-9]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function cardMerchantScore(a,b){
+  const x=cardNormalizeMerchant(a),y=cardNormalizeMerchant(b);
+  if(!x||!y)return 0;
+  if(x===y)return 100;
+  if(x.startsWith(y)||y.startsWith(x))return 92;
+  const ax=new Set(x.split(' ').filter(t=>t.length>1));
+  const by=new Set(y.split(' ').filter(t=>t.length>1));
+  const inter=[...ax].filter(t=>by.has(t)).length;
+  const union=new Set([...ax,...by]).size||1;
+  return Math.round(inter*100/union);
+}
+async function cardPrepareInstallmentMatches(d){
+  const installmentRows=(d.rows||[]).filter(r=>r.installment_number&&r.installment_total&&!r.is_refund);
+  if(!installmentRows.length||!d.competence)return {matched:0};
+
+  const {data:projected,error}=await sb.from('card_installments')
+    .select('id,purchase_group_id,original_card_transaction_id,installment_number,installment_total,competence,amount,status')
+    .eq('family_id',FAMILY_ID)
+    .eq('credit_card_id',d.card.id)
+    .eq('competence',d.competence)
+    .eq('status','projected');
+  if(error)throw error;
+  if(!projected?.length)return {matched:0};
+
+  const originalIds=[...new Set(projected.map(p=>p.original_card_transaction_id).filter(Boolean))];
+  let originals=[];
+  if(originalIds.length){
+    const q=await sb.from('card_transactions')
+      .select('id,description,card_last4')
+      .in('id',originalIds);
+    if(q.error)throw q.error;
+    originals=q.data||[];
+  }
+  const originalMap=new Map(originals.map(x=>[x.id,x]));
+  const used=new Set();
+  let matched=0;
+
+  for(const row of installmentRows){
+    const candidates=projected.filter(p=>{
+      if(used.has(p.id))return false;
+      if(Number(p.installment_number)!==Number(row.installment_number))return false;
+      if(Number(p.installment_total)!==Number(row.installment_total))return false;
+      if(Math.abs(Number(p.amount)-Math.abs(Number(row.amount||0)))>0.02)return false;
+      const o=originalMap.get(p.original_card_transaction_id);
+      if(row.card_last4&&o?.card_last4&&String(row.card_last4)!==String(o.card_last4))return false;
+      return true;
+    }).map(p=>{
+      const o=originalMap.get(p.original_card_transaction_id);
+      return {p,o,score:cardMerchantScore(row.memo,o?.description||'')};
+    }).filter(x=>x.score>=70)
+      .sort((a,b)=>b.score-a.score);
+
+    if(candidates.length){
+      const best=candidates[0];
+      // If two candidates tie with different origins, avoid an unsafe automatic match.
+      const ambiguous=candidates.length>1 && candidates[1].score===best.score
+        && candidates[1].p.purchase_group_id!==best.p.purchase_group_id;
+      if(!ambiguous){
+        row.matched_projection_id=best.p.id;
+        row.matched_purchase_group_id=best.p.purchase_group_id;
+        row.match_score=best.score;
+        used.add(best.p.id);
+        matched++;
+      }
+    }
+  }
+  return {matched};
 }
 
 async function analyzeCardFile(){
@@ -995,15 +1107,16 @@ async function analyzeCardFile(){
     if(!d.rows.length)throw new Error('Nenhum lançamento de cartão foi identificado no arquivo.');
 
     cardImportDraft={...d,card,file_name:file.name};
+    const matchInfo=await cardPrepareInstallmentMatches(cardImportDraft);
 
     note.className=ext==='pdf'?'pdf-review-note':'card-file-note';
     if(ext==='pdf'){
       const sum=d.rows.filter(r=>!r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0)
                 -d.rows.filter(r=>r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0);
       const diff=Math.abs(Number(d.total_amount||0)-sum);
-      note.innerHTML=`<strong>PDF Itaú analisado.</strong> <strong>${d.rows.length} lançamentos atuais</strong> encontrados. Total informado na fatura: <strong>${fmtBRL.format(Number(d.total_amount||0))}</strong>. Soma líquida dos itens detectados: <strong>${fmtBRL.format(sum)}</strong>${diff>0.02?` • <strong>diferença para revisar: ${fmtBRL.format(diff)}</strong>`:' • <strong>valores conferem</strong>'}. Revise antes de confirmar.`;
+      note.innerHTML=`<strong>PDF Itaú analisado.</strong> <strong>${d.rows.length} lançamentos atuais</strong> encontrados. Total informado na fatura: <strong>${fmtBRL.format(Number(d.total_amount||0))}</strong>. Soma líquida dos itens detectados: <strong>${fmtBRL.format(sum)}</strong>${diff>0.02?` • <strong>diferença para revisar: ${fmtBRL.format(diff)}</strong>`:' • <strong>valores conferem</strong>'}${matchInfo.matched?` • <strong>${matchInfo.matched} parcela(s) previstas conciliadas</strong>`:''}. Revise antes de confirmar.`;
     }else{
-      note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;
+      note.textContent=`${d.rows.length} movimentações encontradas.${matchInfo.matched?` ${matchInfo.matched} parcela(s) previstas serão conciliadas.`:''} Revise antes de confirmar.`;
     }
     renderCardDraft(cardImportDraft);
   }catch(e){
@@ -1069,7 +1182,16 @@ async function confirmCardImport(){
       return;
     }
 
-    const payload=rows.map(r=>({
+    // A parcela real herda o purchase_group_id da previsão que já existia.
+    // Só compras parceladas novas recebem um novo grupo.
+    const rowMeta=rows.map(r=>({
+      row:r,
+      groupId:r.installment_total
+        ?(r.matched_purchase_group_id||crypto.randomUUID())
+        :null
+    }));
+
+    const payload=rowMeta.map(({row:r,groupId})=>({
       family_id:FAMILY_ID,
       statement_id:statement.id,
       credit_card_id:d.card.id,
@@ -1082,7 +1204,7 @@ async function confirmCardImport(){
       card_last4:r.card_last4||d.card.last4||null,
       installment_number:r.installment_number,
       installment_total:r.installment_total,
-      purchase_group_id:r.installment_total?crypto.randomUUID():null,
+      purchase_group_id:groupId,
       source_ref:sourceFor(r),
       status:'imported'
     }));
@@ -1090,8 +1212,28 @@ async function confirmCardImport(){
     const ins=await sb.from('card_transactions').insert(payload).select();
     if(ins.error)throw ins.error;
 
+    let matchedCount=0;
     const fut=[];
-    for(const tx of ins.data||[]){
+    for(let i=0;i<(ins.data||[]).length;i++){
+      const tx=ins.data[i];
+      const meta=rowMeta[i];
+      const r=meta.row;
+
+      if(r.matched_projection_id){
+        const upd=await sb.from('card_installments')
+          .update({
+            status:'matched',
+            matched_card_transaction_id:tx.id
+          })
+          .eq('id',r.matched_projection_id)
+          .eq('status','projected');
+        if(upd.error)throw upd.error;
+        matchedCount++;
+        // As demais parcelas futuras deste purchase_group já existem.
+        continue;
+      }
+
+      // Compra parcelada nova: criar somente as parcelas futuras dela.
       if(!tx.installment_number||!tx.installment_total||!tx.purchase_group_id)continue;
       for(let n=tx.installment_number+1;n<=tx.installment_total;n++){
         fut.push({
@@ -1113,7 +1255,7 @@ async function confirmCardImport(){
       if(f.error)throw f.error;
     }
 
-    alert(`Importação concluída: ${rows.length} itens${fut.length?` e ${fut.length} parcelas futuras`:''}.`);
+    alert(`Importação concluída: ${rows.length} itens${matchedCount?`, ${matchedCount} parcela(s) prevista(s) conciliada(s)`:''}${fut.length?` e ${fut.length} novas parcelas futuras`:''}.`);
     resetCardImport();
     await loadCardStatements();
   }catch(e){
