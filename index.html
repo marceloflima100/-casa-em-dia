@@ -129,39 +129,7 @@
   .auth-card button{width:100%;margin-top:16px;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6c5ce7,#8b5cf6);color:#fff;font-weight:800;cursor:pointer}
   .auth-error{min-height:20px;color:#dc2626;font-size:12px;margin-top:10px}.auth-hidden{display:none!important}
 
-  /* ===== Importador OFX Itaú ===== */
-  .import-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start}
-  .import-card{background:#fff;border-radius:18px;box-shadow:var(--shadow);padding:18px}
-  .import-card h3{margin:0 0 6px;font-size:16px}
-  .import-card p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.45}
-  .import-field{margin-bottom:13px}
-  .import-field label{display:block;font-size:11px;font-weight:800;color:#627086;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
-  .import-field select,.import-field input[type=file]{width:100%;border:1px solid var(--line);border-radius:11px;padding:10px;background:#fff;color:var(--ink);font-size:14px}
-  .import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-  .import-status{margin-top:12px;padding:10px 12px;border-radius:11px;background:#f7f8fc;color:var(--muted);font-size:12px;line-height:1.45}
-  .import-status.ok{background:#e9fbf5;color:#087b65}
-  .import-status.warn{background:#fff7e6;color:#946200}
-  .import-status.error{background:#fff1f2;color:#be123c}
-  .ofx-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
-  .ofx-stat{background:#f7f8fc;border-radius:12px;padding:11px}
-  .ofx-stat span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:800}
-  .ofx-stat b{display:block;margin-top:4px;font-size:14px}
-  .ofx-table-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:13px}
-  .ofx-table{min-width:760px}
-  .ofx-table th{top:0}
-  .ofx-table td{padding:8px 7px;font-size:12px}
-  .ofx-table .credit{color:#078b70;font-weight:800;text-align:right}
-  .ofx-table .debit{color:#dc2626;font-weight:800;text-align:right}
-  .ofx-table .dup{background:#fff7e6}
-  .ofx-empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
-  .import-note{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.4}
-  @media(max-width:900px){.import-layout{grid-template-columns:1fr}.ofx-summary{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:680px){
-    .ofx-summary{grid-template-columns:1fr 1fr}
-    .import-card{padding:14px}
-    .import-actions .btn{min-height:44px}
-    .import-field select,.import-field input[type=file]{font-size:16px;min-height:44px}
-  }
+  .bank-grid{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start}.bank-card{background:#fff;border-radius:18px;box-shadow:var(--shadow);padding:18px}.bank-card h3{margin:0 0 5px;font-size:16px}.bank-card p{margin:0 0 15px;color:var(--muted);font-size:12px;line-height:1.45}.bank-field{margin-bottom:13px}.bank-field label{display:block;font-size:11px;font-weight:800;color:#627086;text-transform:uppercase;margin-bottom:6px}.bank-field select,.bank-field input[type=file],.bank-field input[type=month]{width:100%;border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;color:var(--ink)}.bank-actions,.recon-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.bank-status{margin-top:12px;padding:10px 12px;border-radius:11px;background:#f7f8fc;color:var(--muted);font-size:12px}.bank-status.ok{background:#e9fbf5;color:#087b65}.bank-status.warn{background:#fff7e6;color:#946200}.bank-status.error{background:#fff1f2;color:#be123c}.bank-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.bank-stat{background:#f7f8fc;border-radius:12px;padding:11px}.bank-stat span{display:block;font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase}.bank-stat b{display:block;margin-top:4px;font-size:14px}.bank-table-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:13px}.bank-table{min-width:820px}.bank-table td{padding:8px 7px;font-size:12px}.bank-table .credit{color:#078b70;font-weight:800;text-align:right}.bank-table .debit{color:#dc2626;font-weight:800;text-align:right}.bank-table tr.duplicate td{background:#fffaf0}.bank-empty{padding:40px 18px;text-align:center;color:var(--muted);font-size:13px}.recon-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:14px}.recon-toolbar .bank-field{margin:0;min-width:180px}.recon-list{display:flex;flex-direction:column;gap:12px}.recon-item{background:#fff;border-radius:16px;box-shadow:var(--shadow);padding:15px;border-left:4px solid #e8ecf4}.recon-item.matched{border-left-color:var(--teal)}.recon-item.ignored{border-left-color:#94a3b8}.recon-top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(220px,.8fr);gap:14px}.recon-bank-title{font-weight:800;font-size:14px}.recon-meta{font-size:11px;color:var(--muted);margin-top:4px}.recon-value{text-align:right;font-weight:900;font-size:18px}.recon-candidate{margin-top:12px;background:#f8f9fd;border:1px solid var(--line);border-radius:12px;padding:11px}.recon-candidate select{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:10px;padding:9px;background:#fff}.recon-pill{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}.recon-pill.unmatched{background:#fff4da;color:#946200}.recon-pill.matched{background:#e9fbf5;color:#078b70}.recon-pill.ignored{background:#eef2f7;color:#64748b}@media(max-width:900px){.bank-grid{grid-template-columns:1fr}.bank-stats{grid-template-columns:repeat(2,1fr)}.recon-top{grid-template-columns:1fr}.recon-value{text-align:left}}@media(max-width:680px){.bank-card{padding:14px}.bank-field select,.bank-field input[type=file],.bank-field input[type=month]{font-size:16px;min-height:44px}.recon-toolbar{display:grid;grid-template-columns:1fr}.recon-toolbar .bank-field{min-width:0}}
 
 </style>
 </head>
@@ -192,6 +160,7 @@
       <button data-section="transactions">▤ <span>Lançamentos</span></button>
       <button data-section="forecast">↗ <span>Previsão</span></button>
       <button data-section="bankImport">⇩ <span>Importar extrato</span></button>
+      <button data-section="reconciliation">✓ <span>Conciliação</span></button>
     </div>
     <div class="side-note">
       <strong>Online e compartilhado</strong><br>
@@ -324,65 +293,13 @@
 
 
     <section id="bankImport" class="section">
-      <div class="import-layout">
-        <div class="import-card">
-          <h3>Importar extrato Itaú</h3>
-          <p>Selecione a conta e um arquivo OFX. O arquivo é lido no navegador e só é gravado no Supabase depois da sua confirmação.</p>
-
-          <div class="import-field">
-            <label for="bankAccountSelect">Conta</label>
-            <select id="bankAccountSelect">
-              <option value="">Carregando contas...</option>
-            </select>
-          </div>
-
-          <div class="import-field">
-            <label for="ofxFile">Arquivo OFX</label>
-            <input id="ofxFile" type="file" accept=".ofx,application/x-ofx,text/plain">
-          </div>
-
-          <div class="import-actions">
-            <button type="button" class="btn btn-light" id="readOfxBtn">Pré-visualizar</button>
-            <button type="button" class="btn btn-primary" id="confirmOfxBtn" disabled>Confirmar importação</button>
-          </div>
-
-          <div id="ofxImportStatus" class="import-status">Nenhum arquivo selecionado.</div>
-
-          <div class="import-note">
-            Duplicidades são verificadas pelo <strong>FITID</strong> do Itaú. Linhas já importadas não serão gravadas novamente.
-          </div>
-        </div>
-
-        <div class="import-card">
-          <h3>Pré-visualização</h3>
-          <p id="ofxPeriodLabel">Selecione um arquivo OFX para visualizar as movimentações.</p>
-
-          <div class="ofx-summary">
-            <div class="ofx-stat"><span>Movimentações</span><b id="ofxCount">0</b></div>
-            <div class="ofx-stat"><span>Créditos</span><b id="ofxCredits">R$ 0,00</b></div>
-            <div class="ofx-stat"><span>Débitos</span><b id="ofxDebits">R$ 0,00</b></div>
-            <div class="ofx-stat"><span>Duplicadas</span><b id="ofxDuplicates">0</b></div>
-          </div>
-
-          <div class="ofx-table-wrap">
-            <table class="ofx-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Descrição</th>
-                  <th>Tipo</th>
-                  <th style="text-align:right">Valor</th>
-                  <th>FITID</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="ofxPreviewBody">
-                <tr><td colspan="6"><div class="ofx-empty">A pré-visualização aparecerá aqui.</div></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div class="bank-grid">
+        <div class="bank-card"><h3>Importar extrato Itaú</h3><p>Leia o OFX, confira e só depois grave no Supabase.</p><div class="bank-field"><label for="bankAccountSelect">Conta Itaú</label><select id="bankAccountSelect"><option value="">Carregando contas...</option></select></div><div class="bank-field"><label for="ofxFile">Arquivo OFX</label><input id="ofxFile" type="file" accept=".ofx,application/x-ofx,text/plain"></div><div class="bank-actions"><button class="btn btn-light" id="readOfxBtn">Pré-visualizar</button><button class="btn btn-primary" id="confirmOfxBtn" disabled>Confirmar importação</button></div><div id="ofxImportStatus" class="bank-status">Nenhum arquivo selecionado.</div></div>
+        <div class="bank-card"><h3>Pré-visualização</h3><p id="ofxPeriodLabel">Selecione um arquivo OFX.</p><div class="bank-stats"><div class="bank-stat"><span>Movimentações</span><b id="ofxCount">0</b></div><div class="bank-stat"><span>Créditos</span><b id="ofxCredits">R$ 0,00</b></div><div class="bank-stat"><span>Débitos</span><b id="ofxDebits">R$ 0,00</b></div><div class="bank-stat"><span>Duplicadas</span><b id="ofxDuplicates">0</b></div></div><div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th>FITID</th><th>Status</th></tr></thead><tbody id="ofxPreviewBody"><tr><td colspan="6"><div class="bank-empty">A pré-visualização aparecerá aqui.</div></td></tr></tbody></table></div></div>
       </div>
+    </section>
+    <section id="reconciliation" class="section">
+      <div class="panel" style="margin-bottom:14px"><h3>Conciliação bancária</h3><div class="panel-sub">Compare o extrato Itaú com as despesas e receitas do Casa em Dia.</div><div class="recon-toolbar"><div class="bank-field"><label for="reconAccount">Conta</label><select id="reconAccount"><option value="">Todas as contas Itaú</option></select></div><div class="bank-field"><label for="reconMonth">Mês</label><input id="reconMonth" type="month"></div><div class="bank-field"><label for="reconStatus">Situação</label><select id="reconStatus"><option value="unmatched">Não conciliados</option><option value="matched">Conciliados</option><option value="ignored">Ignorados</option><option value="">Todos</option></select></div><button class="btn btn-primary" id="loadReconBtn">Atualizar conciliação</button></div><div class="bank-stats"><div class="bank-stat"><span>Itens</span><b id="reconTotal">0</b></div><div class="bank-stat"><span>Conciliados</span><b id="reconMatched">0</b></div><div class="bank-stat"><span>Pendentes</span><b id="reconPending">0</b></div><div class="bank-stat"><span>Ignorados</span><b id="reconIgnored">0</b></div></div></div><div id="reconStatusBox" class="bank-status" style="margin-bottom:12px">Carregue a conciliação para começar.</div><div id="reconList" class="recon-list"></div>
     </section>
 
     <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados</div>
@@ -736,7 +653,7 @@ function addBlank(type){
 function showSection(id){
   document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===id));
   document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.section===id));
-  document.getElementById("pageTitle").textContent={dashboard:"Visão geral",transactions:"Lançamentos",forecast:"Previsão",bankImport:"Importar extrato"}[id]||"Casa em Dia";
+  document.getElementById("pageTitle").textContent={dashboard:"Visão geral",transactions:"Lançamentos",forecast:"Previsão",bankImport:"Importar extrato",reconciliation:"Conciliação"}[id]||"Casa em Dia";
   if(id==="forecast")setTimeout(renderForecast,20);
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showSection(b.dataset.section));
@@ -769,10 +686,10 @@ let syncTimer = null;
 let onlineReady = false;
 
 function dbToLocal(r){
-  return {id:r.id,date:r.transaction_date,description:r.description,type:r.type,category:r.category,person:r.person,status:r.status,recurring:!!r.recurring,value:Number(r.amount||0),source:r.source||"manual",_updated_at:r.updated_at,_updated_by:r.updated_by};
+  return {id:r.id,date:r.transaction_date,description:r.description,type:r.type,category:r.category,person:r.person,status:r.status,recurring:!!r.recurring,value:Number(r.amount||0),source:r.source||"manual",bank_statement_transaction_id:r.bank_statement_transaction_id||null,_updated_at:r.updated_at,_updated_by:r.updated_by};
 }
 function localToDb(t, includeId=false){
-  const row={family_id:FAMILY_ID,transaction_date:t.date,description:t.description,type:t.type,category:t.category||"Outros",person:t.person||"Família",status:t.status||"realizado",recurring:!!t.recurring,amount:Number(t.value||0),source:t.source||"manual",updated_by:currentAuthUser?.id||null};
+  const row={family_id:FAMILY_ID,transaction_date:t.date,description:t.description,type:t.type,category:t.category||"Outros",person:t.person||"Família",status:t.status||"realizado",recurring:!!t.recurring,amount:Number(t.value||0),source:t.source||"manual",bank_statement_transaction_id:t.bank_statement_transaction_id||null,updated_by:currentAuthUser?.id||null};
   if(includeId && isUuid(t.id)) row.id=t.id;
   return row;
 }
@@ -839,197 +756,28 @@ async function startSession(session){
   if(merr||!membership||membership.family_id!==FAMILY_ID) throw new Error("Este usuário não está vinculado à família configurada.");
   document.getElementById("currentUser").value=currentDisplayName==="Dayse"?"Dayse":"Marcelo";
   document.getElementById("authOverlay").classList.add("auth-hidden");
-  isBooting=false; await loadFromSupabase(); await loadBankAccounts();
+  isBooting=false; await loadFromSupabase(); await loadBankAccounts(); if(document.getElementById('reconMonth'))document.getElementById('reconMonth').value=state.selected;
 }
 
-// ===== Importador OFX Itaú =====
-let bankAccountsCache = [];
-let ofxPreview = null;
-
-function escapeHtml(v){
-  return String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));
-}
-function ofxTag(block,tag){
-  const m=String(block||"").match(new RegExp("<"+tag+">\\s*([^<\\r\\n]*)","i"));
-  return m ? m[1].trim() : "";
-}
-function ofxDate(raw){
-  const m=String(raw||"").match(/^(\d{4})(\d{2})(\d{2})/);
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
-}
-function formatDateBR(iso){
-  const m=String(iso||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso||"";
-}
-function parseItauOfx(text){
-  const normalized=String(text||"").replace(/\r/g,"");
-  const bankId=ofxTag(normalized,"BANKID");
-  const acctId=ofxTag(normalized,"ACCTID");
-  const currency=ofxTag(normalized,"CURDEF");
-  const start=ofxDate(ofxTag(normalized,"DTSTART"));
-  const end=ofxDate(ofxTag(normalized,"DTEND"));
-  const blocks=normalized.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi)||[];
-  const transactions=blocks.map((b,i)=>{
-    const rawType=ofxTag(b,"TRNTYPE").toUpperCase();
-    const amount=Number(ofxTag(b,"TRNAMT").replace(",","."));
-    const fitid=ofxTag(b,"FITID");
-    const date=ofxDate(ofxTag(b,"DTPOSTED"));
-    const memo=ofxTag(b,"MEMO")||"Sem descrição";
-    const type=(rawType==="CREDIT" || amount>0)?"credit":"debit";
-    return {fitid,date,memo,type,amount:Number.isFinite(amount)?amount:0,index:i,duplicate:false};
-  }).filter(x=>x.fitid && x.date);
-  return {bankId,acctId,currency,start,end,transactions};
-}
-async function loadBankAccounts(){
-  const sel=document.getElementById("bankAccountSelect");
-  if(!sel) return;
-  sel.innerHTML='<option value="">Carregando contas...</option>';
-  const {data,error}=await sb.from("bank_accounts")
-    .select("id,nickname,holder_name,bank_name,bank_code")
-    .eq("family_id",FAMILY_ID)
-    .eq("active",true)
-    .order("nickname");
-  if(error){
-    console.error(error);
-    sel.innerHTML='<option value="">Não foi possível carregar</option>';
-    document.getElementById("ofxImportStatus").className="import-status error";
-    document.getElementById("ofxImportStatus").textContent="Não foi possível acessar bank_accounts. Verifique se a tabela está exposta na Data API e se as permissões foram concedidas.";
-    return;
-  }
-  bankAccountsCache=data||[];
-  const itau=bankAccountsCache.filter(a=>String(a.bank_code)==="0341" || /itaú|itau/i.test(a.bank_name||""));
-  sel.innerHTML='<option value="">Selecione a conta...</option>'+itau.map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.nickname)}</option>`).join("");
-}
-async function checkOfxDuplicates(accountId,rows){
-  if(!rows.length) return new Set();
-  const fitids=rows.map(x=>x.fitid);
-  const dup=new Set();
-  for(let i=0;i<fitids.length;i+=100){
-    const chunk=fitids.slice(i,i+100);
-    const {data,error}=await sb.from("bank_statement_transactions")
-      .select("fitid")
-      .eq("bank_account_id",accountId)
-      .in("fitid",chunk);
-    if(error) throw error;
-    (data||[]).forEach(r=>dup.add(r.fitid));
-  }
-  return dup;
-}
-function renderOfxPreview(){
-  const body=document.getElementById("ofxPreviewBody");
-  const data=ofxPreview;
-  if(!data){
-    body.innerHTML='<tr><td colspan="6"><div class="ofx-empty">A pré-visualização aparecerá aqui.</div></td></tr>';
-    return;
-  }
-  const rows=data.transactions;
-  const credits=rows.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0);
-  const debits=rows.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0);
-  const dups=rows.filter(x=>x.duplicate).length;
-  document.getElementById("ofxCount").textContent=rows.length;
-  document.getElementById("ofxCredits").textContent=fmtBRL.format(credits);
-  document.getElementById("ofxDebits").textContent=fmtBRL.format(debits);
-  document.getElementById("ofxDuplicates").textContent=dups;
-  document.getElementById("ofxPeriodLabel").textContent=`Período: ${formatDateBR(data.start)} a ${formatDateBR(data.end)} • Banco ${data.bankId||"—"} • ${data.currency||"BRL"}`;
-  body.innerHTML=rows.length?rows.map(r=>`
-    <tr class="${r.duplicate?"dup":""}">
-      <td>${escapeHtml(formatDateBR(r.date))}</td>
-      <td>${escapeHtml(r.memo)}</td>
-      <td>${r.type==="credit"?"Crédito":"Débito"}</td>
-      <td class="${r.type==="credit"?"credit":"debit"}">${fmtBRL.format(r.amount)}</td>
-      <td>${escapeHtml(r.fitid)}</td>
-      <td>${r.duplicate?'<span class="badge badge-prev">JÁ IMPORTADO</span>':'<span class="badge badge-real">NOVO</span>'}</td>
-    </tr>`).join(""):'<tr><td colspan="6"><div class="ofx-empty">Nenhuma movimentação encontrada no OFX.</div></td></tr>';
-}
-async function previewSelectedOfx(){
-  const accountId=document.getElementById("bankAccountSelect").value;
-  const file=document.getElementById("ofxFile").files[0];
-  const status=document.getElementById("ofxImportStatus");
-  const confirmBtn=document.getElementById("confirmOfxBtn");
-  confirmBtn.disabled=true;
-  if(!accountId){status.className="import-status warn";status.textContent="Selecione primeiro a conta Itaú.";return;}
-  if(!file){status.className="import-status warn";status.textContent="Selecione um arquivo .ofx.";return;}
-  try{
-    status.className="import-status";status.textContent="Lendo arquivo e verificando duplicidades...";
-    const text=await file.text();
-    const parsed=parseItauOfx(text);
-    if(!parsed.transactions.length) throw new Error("Nenhuma movimentação válida foi encontrada no arquivo.");
-    if(parsed.bankId && parsed.bankId!=="0341") throw new Error(`O arquivo informa banco ${parsed.bankId}. Este importador está configurado para Itaú (0341).`);
-    const duplicates=await checkOfxDuplicates(accountId,parsed.transactions);
-    parsed.transactions.forEach(r=>r.duplicate=duplicates.has(r.fitid));
-    parsed.accountId=accountId;
-    parsed.fileName=file.name;
-    ofxPreview=parsed;
-    renderOfxPreview();
-    const novos=parsed.transactions.filter(x=>!x.duplicate).length;
-    status.className=novos?"import-status ok":"import-status warn";
-    status.textContent=novos?`${novos} movimentações novas prontas para importação. ${duplicates.size} já existentes serão ignoradas.`:"Todas as movimentações deste arquivo já foram importadas.";
-    confirmBtn.disabled=novos===0;
-  }catch(err){
-    console.error(err);ofxPreview=null;renderOfxPreview();
-    status.className="import-status error";status.textContent="Erro ao ler OFX: "+(err.message||err);
-  }
-}
-async function confirmOfxImport(){
-  const status=document.getElementById("ofxImportStatus");
-  const btn=document.getElementById("confirmOfxBtn");
-  if(!ofxPreview || !currentAuthUser) return;
-  const newRows=ofxPreview.transactions.filter(x=>!x.duplicate);
-  if(!newRows.length) return;
-  btn.disabled=true;btn.textContent="Importando...";
-  status.className="import-status";status.textContent="Gravando lote no Supabase...";
-  try{
-    const batchRow={
-      family_id:FAMILY_ID,
-      bank_account_id:ofxPreview.accountId,
-      file_name:ofxPreview.fileName,
-      period_start:ofxPreview.start||null,
-      period_end:ofxPreview.end||null,
-      imported_by:currentAuthUser.id,
-      status:"confirmed"
-    };
-    const {data:batch,error:batchError}=await sb.from("bank_import_batches").insert(batchRow).select("id").single();
-    if(batchError) throw batchError;
-
-    const rows=newRows.map(r=>({
-      family_id:FAMILY_ID,
-      bank_account_id:ofxPreview.accountId,
-      import_batch_id:batch.id,
-      fitid:r.fitid,
-      transaction_date:r.date,
-      transaction_type:r.type,
-      amount:r.amount,
-      memo:r.memo,
-      reconciliation_status:"unmatched"
-    }));
-    const {error:txError}=await sb.from("bank_statement_transactions").insert(rows);
-    if(txError){
-      await sb.from("bank_import_batches").delete().eq("id",batch.id);
-      throw txError;
-    }
-    newRows.forEach(r=>r.duplicate=true);
-    renderOfxPreview();
-    status.className="import-status ok";
-    status.textContent=`Importação concluída: ${newRows.length} movimentações gravadas. O próximo passo será a conciliação com os lançamentos do controle financeiro.`;
-    btn.textContent="Confirmar importação";
-    btn.disabled=true;
-  }catch(err){
-    console.error(err);
-    status.className="import-status error";
-    status.textContent="Não foi possível importar: "+(err.message||err);
-    btn.textContent="Confirmar importação";
-    btn.disabled=false;
-  }
-}
-document.getElementById("readOfxBtn")?.addEventListener("click",previewSelectedOfx);
-document.getElementById("confirmOfxBtn")?.addEventListener("click",confirmOfxImport);
-document.getElementById("ofxFile")?.addEventListener("change",()=>{
-  ofxPreview=null;renderOfxPreview();
-  const f=document.getElementById("ofxFile").files[0];
-  document.getElementById("ofxImportStatus").className="import-status";
-  document.getElementById("ofxImportStatus").textContent=f?`Arquivo selecionado: ${f.name}. Toque em Pré-visualizar.`:"Nenhum arquivo selecionado.";
-  document.getElementById("confirmOfxBtn").disabled=true;
-});
+let bankAccountsCache=[],ofxPreview=null,reconciliationRows=[];
+function esc(v){return String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#039;"}[c]));}
+function tag(b,t){const m=String(b||"").match(new RegExp("<"+t+">\\s*([^<\\r\\n]*)","i"));return m?m[1].trim():"";}
+function ofxD(r){const m=String(r||"").match(/^(\\d{4})(\\d{2})(\\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:"";}
+function brd(i){const m=String(i||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:i||"";}
+function parseOFX(text){const n=String(text||"").replace(/\\r/g,""),blocks=n.match(/<STMTTRN>[\\s\\S]*?<\\/STMTTRN>/gi)||[];const transactions=blocks.map(b=>{const a=Number(tag(b,"TRNAMT").replace(",",".")),rt=tag(b,"TRNTYPE").toUpperCase();return{fitid:tag(b,"FITID"),date:ofxD(tag(b,"DTPOSTED")),memo:tag(b,"MEMO")||"Sem descrição",type:(rt==="CREDIT"||a>0)?"credit":"debit",amount:Number.isFinite(a)?a:0,duplicate:false};}).filter(x=>x.fitid&&x.date);return{bankId:tag(n,"BANKID"),start:ofxD(tag(n,"DTSTART")),end:ofxD(tag(n,"DTEND")),transactions};}
+async function loadBankAccounts(){const {data,error}=await sb.from("bank_accounts").select("id,nickname,bank_name,bank_code").eq("family_id",FAMILY_ID).eq("active",true).order("nickname");if(error){console.error(error);return;}bankAccountsCache=data||[];const itau=bankAccountsCache.filter(a=>String(a.bank_code)==="0341"||/itaú|itau/i.test(a.bank_name||"")),opts=itau.map(a=>`<option value="${a.id}">${esc(a.nickname)}</option>`).join("");document.getElementById("bankAccountSelect").innerHTML='<option value="">Selecione a conta...</option>'+opts;document.getElementById("reconAccount").innerHTML='<option value="">Todas as contas Itaú</option>'+opts;}
+async function previewOFX(){const aid=document.getElementById("bankAccountSelect").value,f=document.getElementById("ofxFile").files[0],st=document.getElementById("ofxImportStatus"),btn=document.getElementById("confirmOfxBtn");btn.disabled=true;if(!aid){st.className="bank-status warn";st.textContent="Selecione a conta.";return;}if(!f){st.className="bank-status warn";st.textContent="Selecione o OFX.";return;}try{const p=parseOFX(await f.text());if(!p.transactions.length)throw new Error("Nenhuma movimentação válida.");const {data,error}=await sb.from("bank_statement_transactions").select("fitid").eq("bank_account_id",aid).in("fitid",p.transactions.map(x=>x.fitid));if(error)throw error;const dup=new Set((data||[]).map(x=>x.fitid));p.transactions.forEach(x=>x.duplicate=dup.has(x.fitid));p.accountId=aid;p.fileName=f.name;ofxPreview=p;document.getElementById("ofxCount").textContent=p.transactions.length;document.getElementById("ofxCredits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDebits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDuplicates").textContent=dup.size;document.getElementById("ofxPeriodLabel").textContent=`Período: ${brd(p.start)} a ${brd(p.end)}`;document.getElementById("ofxPreviewBody").innerHTML=p.transactions.map(x=>`<tr class="${x.duplicate?"duplicate":""}"><td>${brd(x.date)}</td><td>${esc(x.memo)}</td><td>${x.type==="credit"?"Crédito":"Débito"}</td><td class="${x.type==="credit"?"credit":"debit"}">${fmtBRL.format(x.amount)}</td><td>${esc(x.fitid)}</td><td>${x.duplicate?"JÁ IMPORTADO":"NOVO"}</td></tr>`).join("");const novos=p.transactions.filter(x=>!x.duplicate).length;st.className=novos?"bank-status ok":"bank-status warn";st.textContent=novos?`${novos} novas movimentações prontas.`:"Tudo já foi importado.";btn.disabled=!novos;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
+async function importOFX(){const rows=ofxPreview?.transactions.filter(x=>!x.duplicate)||[];if(!rows.length)return;const st=document.getElementById("ofxImportStatus");try{const {data:b,error:be}=await sb.from("bank_import_batches").insert({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,file_name:ofxPreview.fileName,period_start:ofxPreview.start||null,period_end:ofxPreview.end||null,imported_by:currentAuthUser.id,status:"confirmed"}).select("id").single();if(be)throw be;const payload=rows.map(x=>({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,import_batch_id:b.id,fitid:x.fitid,transaction_date:x.date,transaction_type:x.type,amount:x.amount,memo:x.memo,reconciliation_status:"unmatched"}));const {error}=await sb.from("bank_statement_transactions").insert(payload);if(error)throw error;st.className="bank-status ok";st.textContent=`${rows.length} movimentações importadas. Abra Conciliação.`;document.getElementById("confirmOfxBtn").disabled=true;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
+function dd(a,b){return Math.round(Math.abs(new Date(a+"T00:00:00Z")-new Date(b+"T00:00:00Z"))/86400000);}
+function score(b,t){const typ=b.transaction_type==="credit"?"income":"expense";if(t.type!==typ)return-999;const dif=Math.abs(Math.abs(b.amount)-Math.abs(t.value));if(dif>5)return-500;const days=dd(b.transaction_date,t.date);if(days>10)return-100;return 100-dif*5-days*4;}
+function cands(b){return state.transactions.map(t=>({t,s:score(b,t)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,12);}
+async function loadRecon(){const st=document.getElementById("reconStatusBox");st.className="bank-status";st.textContent="Carregando...";let q=sb.from("bank_statement_transactions").select("*").eq("family_id",FAMILY_ID).order("transaction_date",{ascending:false});const aid=document.getElementById("reconAccount").value,rs=document.getElementById("reconStatus").value,mo=document.getElementById("reconMonth").value;if(aid)q=q.eq("bank_account_id",aid);if(rs)q=q.eq("reconciliation_status",rs);if(mo){const[y,m]=mo.split("-").map(Number),start=`${y}-${String(m).padStart(2,"0")}-01`,d=new Date(Date.UTC(y,m,1)),end=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-01`;q=q.gte("transaction_date",start).lt("transaction_date",end);}const {data,error}=await q;if(error){st.className="bank-status error";st.textContent=error.message;return;}reconciliationRows=data||[];renderRecon();st.className="bank-status ok";st.textContent=`${reconciliationRows.length} movimentações carregadas.`;}
+function renderRecon(){document.getElementById("reconTotal").textContent=reconciliationRows.length;document.getElementById("reconMatched").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="matched").length;document.getElementById("reconPending").textContent=reconciliationRows.filter(x=>["unmatched","suggested"].includes(x.reconciliation_status)).length;document.getElementById("reconIgnored").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="ignored").length;const list=document.getElementById("reconList");if(!reconciliationRows.length){list.innerHTML='<div class="bank-empty">Nenhum item.</div>';return;}list.innerHTML=reconciliationRows.map(b=>{const cs=cands(b),sel=b.matched_transaction_id||cs[0]?.t.id||"",opts=cs.map(x=>`<option value="${x.t.id}" ${String(x.t.id)===String(sel)?"selected":""}>${brd(x.t.date)} • ${esc(x.t.description)} • ${fmtBRL.format(x.t.value)}</option>`).join(""),pill=b.reconciliation_status==="matched"?"matched":b.reconciliation_status==="ignored"?"ignored":"unmatched";return`<div class="recon-item ${pill}" data-id="${b.id}"><div class="recon-top"><div><div class="recon-bank-title">${esc(b.memo)}</div><div class="recon-meta">${brd(b.transaction_date)} • ${b.transaction_type==="credit"?"Crédito":"Débito"}</div><div style="margin-top:6px"><span class="recon-pill ${pill}">${pill.toUpperCase()}</span></div></div><div class="recon-value ${b.transaction_type==="credit"?"positive":"negative"}">${fmtBRL.format(b.amount)}</div></div><div class="recon-candidate"><select class="cand"><option value="">— Nenhum —</option>${opts}</select><div class="recon-actions"><button class="btn btn-primary rec">Conciliar</button><button class="btn btn-light create">Criar lançamento</button><button class="btn btn-light ign">Ignorar</button>${b.reconciliation_status==="matched"?'<button class="btn btn-danger undo">Desfazer</button>':""}</div></div></div>`}).join("");list.querySelectorAll(".rec").forEach(x=>x.onclick=()=>reconcile(x.closest(".recon-item")));list.querySelectorAll(".create").forEach(x=>x.onclick=()=>createTx(x.closest(".recon-item")));list.querySelectorAll(".ign").forEach(x=>x.onclick=()=>ignoreTx(x.closest(".recon-item")));list.querySelectorAll(".undo").forEach(x=>x.onclick=()=>undoTx(x.closest(".recon-item")));}
+async function reconcile(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id),tid=card.querySelector(".cand").value;if(!tid){alert("Selecione um lançamento.");return;}const t=state.transactions.find(x=>String(x.id)===String(tid));const {error:e1}=await sb.from("bank_statement_transactions").update({reconciliation_status:"matched",matched_transaction_id:t.id}).eq("id",b.id);if(e1){alert(e1.message);return;}const {error:e2}=await sb.from("transactions").update({bank_statement_transaction_id:b.id,updated_by:currentAuthUser.id}).eq("id",t.id);if(e2){alert(e2.message);return;}await loadFromSupabase();await loadRecon();}
+async function createTx(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id),type=b.transaction_type==="credit"?"income":"expense";const {data:t,error:e1}=await sb.from("transactions").insert({family_id:FAMILY_ID,transaction_date:b.transaction_date,description:b.memo||"Movimentação Itaú",type,category:catFor(b.memo,type),person:personFor(b.memo,type),status:"realizado",recurring:false,amount:Math.abs(b.amount),source:"bank_import",created_by:currentAuthUser.id,updated_by:currentAuthUser.id,bank_statement_transaction_id:b.id}).select().single();if(e1){alert(e1.message);return;}await sb.from("bank_statement_transactions").update({reconciliation_status:"matched",matched_transaction_id:t.id}).eq("id",b.id);await loadFromSupabase();await loadRecon();}
+async function ignoreTx(card){await sb.from("bank_statement_transactions").update({reconciliation_status:"ignored",matched_transaction_id:null}).eq("id",card.dataset.id);await loadRecon();}
+async function undoTx(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id);if(b.matched_transaction_id)await sb.from("transactions").update({bank_statement_transaction_id:null,updated_by:currentAuthUser.id}).eq("id",b.matched_transaction_id);await sb.from("bank_statement_transactions").update({reconciliation_status:"unmatched",matched_transaction_id:null}).eq("id",b.id);await loadFromSupabase();await loadRecon();}
+document.getElementById("readOfxBtn")?.addEventListener("click",previewOFX);document.getElementById("confirmOfxBtn")?.addEventListener("click",importOFX);document.getElementById("loadReconBtn")?.addEventListener("click",loadRecon);
 
 async function initAuth(){
   fillCategorySelects(); fillMonthSelect();
