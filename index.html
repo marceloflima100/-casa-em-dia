@@ -341,6 +341,10 @@
   .topbar-controls{width:100%;justify-content:flex-start}
 }
 
+
+.pdf-review-note{background:#eef7ff;border:1px solid #cfe4ff;color:#365b7c;border-radius:10px;padding:10px;margin-top:10px;font-size:12px}
+.pdf-review-note strong{color:#183b59}
+
 </style>
 </head>
 <body>
@@ -527,7 +531,7 @@
     <section id="cards" class="section">
       <div class="cards-grid" id="creditCardsGrid"><div class="bank-empty">Carregando cartões...</div></div>
       <div class="card-import-panel">
-        <h3>Importar fatura</h3><p class="panel-sub">Nubank OFX já pode ser analisado e gravado. Itaú PDF está preparado para a próxima etapa.</p>
+        <h3>Importar fatura</h3><p class="panel-sub">Nubank OFX e Itaú PDF podem ser analisados e revisados antes da gravação.</p>
         <div class="card-import-controls">
           <div><label for="cardImportCard">Cartão</label><select id="cardImportCard"><option value="">Selecione...</option></select></div>
           <div><label for="cardImportFile">Arquivo</label><input id="cardImportFile" type="file" accept=".ofx,.pdf,application/pdf"></div>
@@ -549,11 +553,12 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 7</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 8</div>
   </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 // ===== Cartões / importação de faturas =====
 let creditCards=[],cardImportDraft=null;
@@ -778,9 +783,340 @@ async function toggleStatement(statementId){
 }
 function resetCardImport(){cardImportDraft=null;const f=document.getElementById('cardImportFile');if(f)f.value='';document.getElementById('cardImportSummary').style.display='none';document.getElementById('cardPreview').style.display='none';document.getElementById('cardImportActions').style.display='none';document.getElementById('cardPreviewBody').innerHTML='';}
 function renderCardDraft(d){const deb=d.rows.filter(r=>r.amount<0).reduce((a,r)=>a+Math.abs(r.amount),0),cred=d.rows.filter(r=>r.amount>0).reduce((a,r)=>a+Math.abs(r.amount),0);document.getElementById('cardKpiCompetence').textContent=monthLabel(d.competence);document.getElementById('cardKpiItems').textContent=d.rows.length;document.getElementById('cardKpiDebits').textContent=fmtBRL.format(deb);document.getElementById('cardKpiCredits').textContent=fmtBRL.format(cred);document.getElementById('cardPreviewBody').innerHTML=d.rows.map(r=>`<tr><td>${brd(r.date)}</td><td>${esc(r.memo)}</td><td>${r.is_refund?'<span class="pill-refund">Crédito/estorno</span>':'Compra'}</td><td>${r.installment_number?`<span class="pill-installment">${r.installment_number}/${r.installment_total}</span>`:'—'}</td><td style="font-weight:800;${r.amount>=0?'color:#0f9f78':'color:#df2f37'}">${fmtBRL.format(r.amount)}</td></tr>`).join('');document.getElementById('cardImportSummary').style.display='grid';document.getElementById('cardPreview').style.display='block';document.getElementById('cardImportActions').style.display='flex';}
-async function analyzeCardFile(){const card=creditCards.find(c=>c.id===document.getElementById('cardImportCard').value),file=document.getElementById('cardImportFile').files[0],note=document.getElementById('cardImportNote');if(!card)return alert('Selecione o cartão.');if(!file)return alert('Selecione o arquivo da fatura.');const ext=(file.name.split('.').pop()||'').toLowerCase();if(ext==='pdf'){resetCardImport();note.className='card-file-note warn';note.textContent='O Itaú PDF está cadastrado, mas a leitura automática do PDF será implementada na próxima etapa. Nenhum dado foi gravado.';return;}if(ext!=='ofx'){resetCardImport();note.className='card-file-note warn';note.textContent='Nesta versão, use um arquivo OFX do Nubank.';return;}try{const d=parseCardOFX(await file.text());if(!d.rows.length)throw new Error('Nenhuma movimentação encontrada.');cardImportDraft={...d,card,file_name:file.name};note.className='card-file-note';note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;renderCardDraft(cardImportDraft);}catch(e){console.error(e);note.className='card-file-note warn';note.textContent='Não foi possível interpretar este OFX: '+e.message;}}
+
+function cardParseBRL(v){
+  const t=String(v||'').replace(/R\$/gi,'').replace(/\s+/g,'').replace(/\./g,'').replace(',','.').replace(/[^\d.-]/g,'');
+  const n=Number(t);
+  return Number.isFinite(n)?n:0;
+}
+function cardIsoFromBRDate(v){
+  const m=String(v||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m?`${m[3]}-${m[2]}-${m[1]}`:'';
+}
+function cardPdfTxnDate(ddmm,closingDate){
+  const m=String(ddmm||'').match(/^(\d{2})\/(\d{2})$/);
+  if(!m||!closingDate)return '';
+  const day=Number(m[1]),month=Number(m[2]);
+  const [cy,cm]=closingDate.split('-').map(Number);
+  const year=month>cm?cy-1:cy;
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+function cardPdfInstallment(text){
+  const m=String(text||'').match(/(\d{1,2})\s*\/\s*(\d{1,2})(?!.*\d\s*\/\s*\d)/);
+  if(!m)return {number:null,total:null};
+  const number=Number(m[1]),total=Number(m[2]);
+  return number>0&&total>0&&number<=total?{number,total}:{number:null,total:null};
+}
+function cardPdfCleanDescription(text){
+  return String(text||'')
+    .replace(/^\d{2}\/\d{2}\s+/,'')
+    .replace(/\s+-?\s*[\d.]+,\d{2}\s*$/,'')
+    .replace(/\s*\d{1,2}\s*\/\s*\d{1,2}\s*$/,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
+function cardPdfSourceRef(r){
+  return ['pdf',r.card_last4||'',r.date||'',Number(r.amount||0).toFixed(2),String(r.memo||'').trim().toLowerCase()].join('|');
+}
+async function cardPdfLines(file){
+  if(typeof pdfjsLib==='undefined')throw new Error('Biblioteca de leitura PDF não carregou.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const data=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data}).promise;
+  const pages=[];
+
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent();
+    const viewport=page.getViewport({scale:1});
+    const mid=viewport.width/2;
+
+    const items=tc.items
+      .filter(i=>String(i.str||'').trim())
+      .map(i=>({text:String(i.str).trim(),x:i.transform[4],y:i.transform[5]}));
+
+    const byColumn=[items.filter(i=>i.x<mid),items.filter(i=>i.x>=mid)];
+    const lines=[];
+
+    for(const col of byColumn){
+      const rows=[];
+      for(const item of col.sort((a,b)=>b.y-a.y||a.x-b.x)){
+        let row=rows.find(r=>Math.abs(r.y-item.y)<=2.5);
+        if(!row){row={y:item.y,items:[]};rows.push(row);}
+        row.items.push(item);
+      }
+      rows.sort((a,b)=>b.y-a.y);
+      for(const row of rows){
+        const line=row.items.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim();
+        if(line)lines.push(line);
+      }
+    }
+    pages.push(lines);
+  }
+  return pages;
+}
+async function parseItauCardPDF(file){
+  const pages=await cardPdfLines(file);
+  const all=pages.flat();
+  const allText=all.join('\n');
+
+  const dueMatch=allText.match(/Vencimento:\s*(\d{2}\/\d{2}\/\d{4})/i)
+    || allText.match(/Com vencimento em:[\s\S]{0,80}?(\d{2}\/\d{2}\/\d{4})/i);
+  const closingMatch=allText.match(/Emiss[aã]o:\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const nextClose=allText.match(/(?:Previs[aã]o prox\. Fechamento|Previs[aã]o do pr[oó]ximo fechamento):\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const totalMatch=allText.match(/Total desta fatura\s+([\d.]+,\d{2})/i)
+    || allText.match(/Total dos lan[çc]amentos atuais\s+([\d.]+,\d{2})/i);
+
+  const dueDate=dueMatch?cardIsoFromBRDate(dueMatch[1]):'';
+  let closingDate=closingMatch?cardIsoFromBRDate(closingMatch[1]):'';
+  if(!closingDate && nextClose){
+    const n=cardIsoFromBRDate(nextClose[1]);
+    if(n){
+      const d=new Date(n+'T12:00:00');
+      d.setMonth(d.getMonth()-1);
+      closingDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+  }
+  if(!closingDate && dueDate)closingDate=dueDate;
+
+  const competence=(dueDate||closingDate).slice(0,7)+(dueDate||closingDate?'-01':'');
+  const totalAmount=totalMatch?cardParseBRL(totalMatch[1]):0;
+
+  const rows=[];
+  let currentLast4=null;
+  let currentHolder=null;
+  let stopCurrent=false;
+
+  for(const pageLines of pages){
+    for(const raw of pageLines){
+      const line=String(raw||'').replace(/\s+/g,' ').trim();
+      if(!line)continue;
+
+      if(/Compras parceladas\s*-\s*pr[oó]ximas faturas/i.test(line)){
+        stopCurrent=true;
+        continue;
+      }
+      if(stopCurrent)continue;
+
+      const holder=line.match(/^(.+?)\s*\(final\s+(\d{4})\)/i);
+      if(holder){
+        currentHolder=holder[1].trim();
+        currentLast4=holder[2];
+        continue;
+      }
+      const totalCard=line.match(/Lan[çc]amentos no cart[aã]o\s*\(final\s+(\d{4})\)/i);
+      if(totalCard){
+        currentLast4=totalCard[1];
+        continue;
+      }
+
+      const tx=line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+(-?\s*[\d.]+,\d{2})$/);
+      if(!tx)continue;
+
+      const date=cardPdfTxnDate(tx[1],closingDate);
+      if(!date)continue;
+
+      let middle=tx[2].trim();
+      const amount=cardParseBRL(tx[3]);
+      const inst=cardPdfInstallment(middle);
+      let memo=middle.replace(/\s*\d{1,2}\s*\/\s*\d{1,2}\s*$/,'').trim();
+
+      if(!memo || /^(DATA|ESTABELECIMENTO|VALOR EM R\$)$/i.test(memo))continue;
+      if(/^(Limite|Juros|CET|Valor total|Valor compra|Quantidade de parcelas)/i.test(memo))continue;
+
+      const isRefund=/^\s*-/.test(tx[3]) || amount<0;
+      const holderPerson=currentHolder&&/DAYSE/i.test(currentHolder)?'Dayse':
+                         currentHolder&&/MARCELO/i.test(currentHolder)?'Marcelo':null;
+
+      rows.push({
+        date,
+        amount:isRefund?Math.abs(amount):Math.abs(amount),
+        memo,
+        fitid:'',
+        trntype:isRefund?'CREDIT':'DEBIT',
+        installment_number:inst.number,
+        installment_total:inst.total,
+        is_refund:isRefund,
+        card_last4:currentLast4,
+        person:holderPerson,
+        source_ref:''
+      });
+    }
+  }
+
+  // Remove exact duplicates that can arise from repeated PDF text layers.
+  const seen=new Set();
+  const dedup=rows.filter(r=>{
+    r.source_ref=cardPdfSourceRef(r);
+    if(seen.has(r.source_ref))return false;
+    seen.add(r.source_ref);
+    return true;
+  });
+
+  return {
+    source_format:'pdf',
+    competence,
+    period_start:'',
+    period_end:closingDate,
+    closing_date:closingDate,
+    due_date:dueDate,
+    total_amount:totalAmount,
+    rows:dedup
+  };
+}
+
+async function analyzeCardFile(){
+  const card=creditCards.find(c=>c.id===document.getElementById('cardImportCard').value);
+  const file=document.getElementById('cardImportFile').files[0];
+  const note=document.getElementById('cardImportNote');
+
+  if(!card)return alert('Selecione o cartão.');
+  if(!file)return alert('Selecione o arquivo da fatura.');
+
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+
+  try{
+    let d;
+    if(ext==='ofx'){
+      d=parseCardOFX(await file.text());
+    }else if(ext==='pdf'){
+      d=await parseItauCardPDF(file);
+    }else{
+      throw new Error('Formato não suportado. Use OFX ou PDF.');
+    }
+
+    if(!d.rows.length)throw new Error('Nenhum lançamento de cartão foi identificado no arquivo.');
+
+    cardImportDraft={...d,card,file_name:file.name};
+
+    note.className=ext==='pdf'?'pdf-review-note':'card-file-note';
+    if(ext==='pdf'){
+      const sum=d.rows.filter(r=>!r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0)
+                -d.rows.filter(r=>r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0);
+      const diff=Math.abs(Number(d.total_amount||0)-sum);
+      note.innerHTML=`<strong>PDF Itaú analisado.</strong> ${d.rows.length} lançamentos encontrados. Total informado na fatura: ${fmtBRL.format(Number(d.total_amount||0))}. Soma líquida dos itens detectados: ${fmtBRL.format(sum)}${diff>0.02?` • diferença para revisar: ${fmtBRL.format(diff)}`:' • valores conferem'}. Revise antes de confirmar.`;
+    }else{
+      note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;
+    }
+    renderCardDraft(cardImportDraft);
+  }catch(e){
+    console.error(e);
+    note.className='card-file-note warn';
+    note.textContent='Não foi possível interpretar o arquivo: '+(e.message||e);
+  }
+}
 function cardAddMonths(dateStr,n){const [y,m]=dateStr.split('-').map(Number),d=new Date(y,m-1+n,1,12);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;}
-async function confirmCardImport(){const d=cardImportDraft;if(!d)return;const btn=document.getElementById('cardConfirmImportBtn');btn.disabled=true;btn.textContent='Importando...';try{const u=(await sb.auth.getUser()).data.user;if(!u)throw new Error('Sessão não encontrada.');let statement;const q=await sb.from('card_statements').select('*').eq('credit_card_id',d.card.id).eq('competence',d.competence).maybeSingle();if(q.error)throw q.error;if(q.data)statement=q.data;else{const ins=await sb.from('card_statements').insert({family_id:FAMILY_ID,credit_card_id:d.card.id,competence:d.competence,closing_date:d.period_end||null,total_amount:d.total_amount||0,source_file_name:d.file_name,source_format:'ofx',status:'imported',created_by:u.id}).select().single();if(ins.error)throw ins.error;statement=ins.data;}const ex=await sb.from('card_transactions').select('source_ref').eq('statement_id',statement.id);if(ex.error)throw ex.error;const refs=new Set((ex.data||[]).map(x=>x.source_ref));const rows=d.rows.filter(r=>!refs.has(cardSourceRef(r)));if(!rows.length){alert('Esta fatura não possui novos itens para importar.');resetCardImport();return;}const payload=rows.map(r=>({family_id:FAMILY_ID,statement_id:statement.id,credit_card_id:d.card.id,transaction_date:r.date,description:r.memo,amount:Math.abs(r.amount),category:null,person:d.card.holder_name||null,card_last4:d.card.last4||null,installment_number:r.installment_number,installment_total:r.installment_total,purchase_group_id:r.installment_total?crypto.randomUUID():null,source_ref:cardSourceRef(r),status:'imported'}));const ins=await sb.from('card_transactions').insert(payload).select();if(ins.error)throw ins.error;const fut=[];for(const tx of ins.data||[]){if(!tx.installment_number||!tx.installment_total||!tx.purchase_group_id)continue;for(let n=tx.installment_number+1;n<=tx.installment_total;n++)fut.push({family_id:FAMILY_ID,credit_card_id:d.card.id,original_card_transaction_id:tx.id,purchase_group_id:tx.purchase_group_id,installment_number:n,installment_total:tx.installment_total,competence:cardAddMonths(d.competence,n-tx.installment_number),amount:tx.amount,status:'projected'});}if(fut.length){const f=await sb.from('card_installments').insert(fut);if(f.error)throw f.error;}alert(`Importação concluída: ${rows.length} itens${fut.length?` e ${fut.length} parcelas futuras`:''}.`);resetCardImport();}catch(e){console.error(e);alert('Erro ao importar a fatura: '+e.message);}finally{btn.disabled=false;btn.textContent='Confirmar importação';}}
+async function confirmCardImport(){
+  const d=cardImportDraft;
+  if(!d)return;
+
+  const btn=document.getElementById('cardConfirmImportBtn');
+  btn.disabled=true;
+  btn.textContent='Importando...';
+
+  try{
+    const u=(await sb.auth.getUser()).data.user;
+    if(!u)throw new Error('Sessão não encontrada.');
+    if(!d.competence)throw new Error('Competência da fatura não identificada.');
+
+    let statement;
+    const q=await sb.from('card_statements')
+      .select('*')
+      .eq('credit_card_id',d.card.id)
+      .eq('competence',d.competence)
+      .maybeSingle();
+    if(q.error)throw q.error;
+
+    if(q.data){
+      statement=q.data;
+    }else{
+      const ins=await sb.from('card_statements').insert({
+        family_id:FAMILY_ID,
+        credit_card_id:d.card.id,
+        competence:d.competence,
+        closing_date:d.closing_date||d.period_end||null,
+        due_date:d.due_date||null,
+        total_amount:Number(d.total_amount||0),
+        source_file_name:d.file_name,
+        source_format:d.source_format||'manual',
+        status:'imported',
+        created_by:u.id
+      }).select().single();
+      if(ins.error)throw ins.error;
+      statement=ins.data;
+    }
+
+    const ex=await sb.from('card_transactions')
+      .select('source_ref')
+      .eq('statement_id',statement.id);
+    if(ex.error)throw ex.error;
+    const refs=new Set((ex.data||[]).map(x=>x.source_ref).filter(Boolean));
+
+    const sourceFor=r=>r.source_ref||cardSourceRef(r);
+    const rows=d.rows.filter(r=>!refs.has(sourceFor(r)));
+
+    if(!rows.length){
+      alert('Esta fatura não possui novos itens para importar.');
+      resetCardImport();
+      await loadCardStatements();
+      return;
+    }
+
+    const payload=rows.map(r=>({
+      family_id:FAMILY_ID,
+      statement_id:statement.id,
+      credit_card_id:d.card.id,
+      transaction_date:r.date,
+      description:r.memo,
+      amount:Math.abs(Number(r.amount||0)),
+      entry_type:r.is_refund?'credit':'debit',
+      category:null,
+      person:r.person||d.card.holder_name||null,
+      card_last4:r.card_last4||d.card.last4||null,
+      installment_number:r.installment_number,
+      installment_total:r.installment_total,
+      purchase_group_id:r.installment_total?crypto.randomUUID():null,
+      source_ref:sourceFor(r),
+      status:'imported'
+    }));
+
+    const ins=await sb.from('card_transactions').insert(payload).select();
+    if(ins.error)throw ins.error;
+
+    const fut=[];
+    for(const tx of ins.data||[]){
+      if(!tx.installment_number||!tx.installment_total||!tx.purchase_group_id)continue;
+      for(let n=tx.installment_number+1;n<=tx.installment_total;n++){
+        fut.push({
+          family_id:FAMILY_ID,
+          credit_card_id:d.card.id,
+          original_card_transaction_id:tx.id,
+          purchase_group_id:tx.purchase_group_id,
+          installment_number:n,
+          installment_total:tx.installment_total,
+          competence:cardAddMonths(d.competence,n-tx.installment_number),
+          amount:tx.amount,
+          status:'projected'
+        });
+      }
+    }
+
+    if(fut.length){
+      const f=await sb.from('card_installments').insert(fut);
+      if(f.error)throw f.error;
+    }
+
+    alert(`Importação concluída: ${rows.length} itens${fut.length?` e ${fut.length} parcelas futuras`:''}.`);
+    resetCardImport();
+    await loadCardStatements();
+  }catch(e){
+    console.error(e);
+    alert('Erro ao importar a fatura: '+(e.message||e));
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Confirmar importação';
+  }
+}
 document.getElementById('cardAnalyzeBtn')?.addEventListener('click',analyzeCardFile);document.getElementById('cardCancelImportBtn')?.addEventListener('click',resetCardImport);document.getElementById('cardConfirmImportBtn')?.addEventListener('click',confirmCardImport);
 document.getElementById('reloadCreditCardsBtn')?.addEventListener('click',loadCreditCards);
 </script>
