@@ -553,7 +553,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 8</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 9</div>
   </main>
 </div>
 
@@ -829,13 +829,20 @@ async function cardPdfLines(file){
     const page=await pdf.getPage(p);
     const tc=await page.getTextContent();
     const viewport=page.getViewport({scale:1});
-    const mid=viewport.width/2;
+
+    // As tabelas do Itaú não são divididas exatamente no meio da página.
+    // A coluna esquerda termina perto de 60% da largura; usar 50% separava
+    // o valor da compra da própria linha e fazia lançamentos desaparecerem.
+    const columnSplit=viewport.width*0.60;
 
     const items=tc.items
       .filter(i=>String(i.str||'').trim())
       .map(i=>({text:String(i.str).trim(),x:i.transform[4],y:i.transform[5]}));
 
-    const byColumn=[items.filter(i=>i.x<mid),items.filter(i=>i.x>=mid)];
+    const byColumn=[
+      items.filter(i=>i.x<columnSplit),
+      items.filter(i=>i.x>=columnSplit)
+    ];
     const lines=[];
 
     for(const col of byColumn){
@@ -994,7 +1001,7 @@ async function analyzeCardFile(){
       const sum=d.rows.filter(r=>!r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0)
                 -d.rows.filter(r=>r.is_refund).reduce((a,r)=>a+Math.abs(Number(r.amount||0)),0);
       const diff=Math.abs(Number(d.total_amount||0)-sum);
-      note.innerHTML=`<strong>PDF Itaú analisado.</strong> ${d.rows.length} lançamentos encontrados. Total informado na fatura: ${fmtBRL.format(Number(d.total_amount||0))}. Soma líquida dos itens detectados: ${fmtBRL.format(sum)}${diff>0.02?` • diferença para revisar: ${fmtBRL.format(diff)}`:' • valores conferem'}. Revise antes de confirmar.`;
+      note.innerHTML=`<strong>PDF Itaú analisado.</strong> <strong>${d.rows.length} lançamentos atuais</strong> encontrados. Total informado na fatura: <strong>${fmtBRL.format(Number(d.total_amount||0))}</strong>. Soma líquida dos itens detectados: <strong>${fmtBRL.format(sum)}</strong>${diff>0.02?` • <strong>diferença para revisar: ${fmtBRL.format(diff)}</strong>`:' • <strong>valores conferem</strong>'}. Revise antes de confirmar.`;
     }else{
       note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;
     }
