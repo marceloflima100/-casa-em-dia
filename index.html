@@ -126,6 +126,18 @@
   .auth-card label{display:block;font-size:12px;font-weight:700;color:#627086;margin:12px 0 6px}
   .auth-card input{width:100%;border:1px solid #e8ecf4;border-radius:12px;padding:12px 13px;outline:none;font-size:16px}
   .auth-card input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(108,92,231,.1)}
+  .password-wrap{position:relative}
+  .password-wrap input{padding-right:52px}
+  .password-toggle{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    width:40px;height:40px;border:0!important;border-radius:10px!important;
+    margin:0!important;padding:0!important;background:#f4f5f9!important;
+    color:#516078!important;display:grid;place-items:center;cursor:pointer;
+    font-size:18px;font-weight:700;box-shadow:none!important
+  }
+  .password-toggle:hover{background:#eceef5!important}
+  .password-toggle:focus{outline:2px solid #8b5cf6;outline-offset:2px}
+
   .auth-card button{width:100%;margin-top:16px;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6c5ce7,#8b5cf6);color:#fff;font-weight:800;cursor:pointer}
   .auth-error{min-height:20px;color:#dc2626;font-size:12px;margin-top:10px}.auth-hidden{display:none!important}
 
@@ -143,7 +155,10 @@
       <label for="loginEmail">E-mail</label>
       <input id="loginEmail" type="email" autocomplete="username" required placeholder="seu@email.com">
       <label for="loginPassword">Senha</label>
-      <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Sua senha">
+      <div class="password-wrap">
+        <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Sua senha">
+        <button id="togglePassword" class="password-toggle" type="button" aria-label="Mostrar senha" title="Mostrar senha">◉</button>
+      </div>
       <button id="loginBtn" type="submit">Entrar</button>
       <div id="loginError" class="auth-error"></div>
     </form>
@@ -762,9 +777,9 @@ async function startSession(session){
 let bankAccountsCache=[],ofxPreview=null,reconciliationRows=[];
 function esc(v){return String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#039;"}[c]));}
 function tag(b,t){const m=String(b||"").match(new RegExp("<"+t+">\\s*([^<\\r\\n]*)","i"));return m?m[1].trim():"";}
-function ofxD(r){const m=String(r||"").match(/^(\\d{4})(\\d{2})(\\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:"";}
-function brd(i){const m=String(i||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:i||"";}
-function parseOFX(text){const n=String(text||"").replace(/\\r/g,""),blocks=n.match(/<STMTTRN>[\\s\\S]*?<\\/STMTTRN>/gi)||[];const transactions=blocks.map(b=>{const a=Number(tag(b,"TRNAMT").replace(",",".")),rt=tag(b,"TRNTYPE").toUpperCase();return{fitid:tag(b,"FITID"),date:ofxD(tag(b,"DTPOSTED")),memo:tag(b,"MEMO")||"Sem descrição",type:(rt==="CREDIT"||a>0)?"credit":"debit",amount:Number.isFinite(a)?a:0,duplicate:false};}).filter(x=>x.fitid&&x.date);return{bankId:tag(n,"BANKID"),start:ofxD(tag(n,"DTSTART")),end:ofxD(tag(n,"DTEND")),transactions};}
+function ofxD(r){const m=String(r||"").match(/^(\d{4})(\d{2})(\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:"";}
+function brd(i){const m=String(i||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:i||"";}
+function parseOFX(text){const n=String(text||"").replace(/\r/g,""),blocks=n.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi)||[];const transactions=blocks.map(b=>{const a=Number(tag(b,"TRNAMT").replace(",",".")),rt=tag(b,"TRNTYPE").toUpperCase();return{fitid:tag(b,"FITID"),date:ofxD(tag(b,"DTPOSTED")),memo:tag(b,"MEMO")||"Sem descrição",type:(rt==="CREDIT"||a>0)?"credit":"debit",amount:Number.isFinite(a)?a:0,duplicate:false};}).filter(x=>x.fitid&&x.date);return{bankId:tag(n,"BANKID"),start:ofxD(tag(n,"DTSTART")),end:ofxD(tag(n,"DTEND")),transactions};}
 async function loadBankAccounts(){const {data,error}=await sb.from("bank_accounts").select("id,nickname,bank_name,bank_code").eq("family_id",FAMILY_ID).eq("active",true).order("nickname");if(error){console.error(error);return;}bankAccountsCache=data||[];const itau=bankAccountsCache.filter(a=>String(a.bank_code)==="0341"||/itaú|itau/i.test(a.bank_name||"")),opts=itau.map(a=>`<option value="${a.id}">${esc(a.nickname)}</option>`).join("");document.getElementById("bankAccountSelect").innerHTML='<option value="">Selecione a conta...</option>'+opts;document.getElementById("reconAccount").innerHTML='<option value="">Todas as contas Itaú</option>'+opts;}
 async function previewOFX(){const aid=document.getElementById("bankAccountSelect").value,f=document.getElementById("ofxFile").files[0],st=document.getElementById("ofxImportStatus"),btn=document.getElementById("confirmOfxBtn");btn.disabled=true;if(!aid){st.className="bank-status warn";st.textContent="Selecione a conta.";return;}if(!f){st.className="bank-status warn";st.textContent="Selecione o OFX.";return;}try{const p=parseOFX(await f.text());if(!p.transactions.length)throw new Error("Nenhuma movimentação válida.");const {data,error}=await sb.from("bank_statement_transactions").select("fitid").eq("bank_account_id",aid).in("fitid",p.transactions.map(x=>x.fitid));if(error)throw error;const dup=new Set((data||[]).map(x=>x.fitid));p.transactions.forEach(x=>x.duplicate=dup.has(x.fitid));p.accountId=aid;p.fileName=f.name;ofxPreview=p;document.getElementById("ofxCount").textContent=p.transactions.length;document.getElementById("ofxCredits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDebits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDuplicates").textContent=dup.size;document.getElementById("ofxPeriodLabel").textContent=`Período: ${brd(p.start)} a ${brd(p.end)}`;document.getElementById("ofxPreviewBody").innerHTML=p.transactions.map(x=>`<tr class="${x.duplicate?"duplicate":""}"><td>${brd(x.date)}</td><td>${esc(x.memo)}</td><td>${x.type==="credit"?"Crédito":"Débito"}</td><td class="${x.type==="credit"?"credit":"debit"}">${fmtBRL.format(x.amount)}</td><td>${esc(x.fitid)}</td><td>${x.duplicate?"JÁ IMPORTADO":"NOVO"}</td></tr>`).join("");const novos=p.transactions.filter(x=>!x.duplicate).length;st.className=novos?"bank-status ok":"bank-status warn";st.textContent=novos?`${novos} novas movimentações prontas.`:"Tudo já foi importado.";btn.disabled=!novos;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
 async function importOFX(){const rows=ofxPreview?.transactions.filter(x=>!x.duplicate)||[];if(!rows.length)return;const st=document.getElementById("ofxImportStatus");try{const {data:b,error:be}=await sb.from("bank_import_batches").insert({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,file_name:ofxPreview.fileName,period_start:ofxPreview.start||null,period_end:ofxPreview.end||null,imported_by:currentAuthUser.id,status:"confirmed"}).select("id").single();if(be)throw be;const payload=rows.map(x=>({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,import_batch_id:b.id,fitid:x.fitid,transaction_date:x.date,transaction_type:x.type,amount:x.amount,memo:x.memo,reconciliation_status:"unmatched"}));const {error}=await sb.from("bank_statement_transactions").insert(payload);if(error)throw error;st.className="bank-status ok";st.textContent=`${rows.length} movimentações importadas. Abra Conciliação.`;document.getElementById("confirmOfxBtn").disabled=true;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
@@ -784,6 +799,20 @@ async function initAuth(){
   const {data:{session}}=await sb.auth.getSession();
   if(session){try{await startSession(session);}catch(e){document.getElementById("loginError").textContent=e.message;}}
 }
+
+const togglePasswordBtn=document.getElementById("togglePassword");
+if(togglePasswordBtn){
+  togglePasswordBtn.addEventListener("click",()=>{
+    const input=document.getElementById("loginPassword");
+    const showing=input.type==="text";
+    input.type=showing?"password":"text";
+    togglePasswordBtn.textContent=showing?"◉":"◎";
+    togglePasswordBtn.setAttribute("aria-label",showing?"Mostrar senha":"Ocultar senha");
+    togglePasswordBtn.title=showing?"Mostrar senha":"Ocultar senha";
+    input.focus();
+  });
+}
+
 document.getElementById("loginForm").addEventListener("submit",async e=>{
   e.preventDefault(); const btn=document.getElementById("loginBtn"),err=document.getElementById("loginError"); err.textContent="";btn.disabled=true;btn.textContent="Entrando...";
   const {data,error}=await sb.auth.signInWithPassword({email:document.getElementById("loginEmail").value.trim(),password:document.getElementById("loginPassword").value});
