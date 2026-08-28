@@ -161,6 +161,31 @@
 
 /* Cartões */
 .cards-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}.credit-card-box{background:linear-gradient(145deg,#18243d,#273659);color:#fff;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(20,31,55,.13)}.cc-bank{font-size:12px;opacity:.75;text-transform:uppercase}.cc-name{font-size:18px;font-weight:800;margin-top:5px}.cc-meta{font-size:13px;opacity:.82;margin-top:20px;display:flex;justify-content:space-between;gap:12px}.card-import-panel{background:#fff;border:1px solid #e5e9f2;border-radius:16px;padding:16px;margin-bottom:16px}.card-import-controls{display:grid;grid-template-columns:1.2fr 1fr auto;gap:10px;align-items:end}.card-import-controls label{display:block;font-size:12px;font-weight:700;color:#536079;margin-bottom:5px}.card-import-controls select,.card-import-controls input{width:100%;height:42px;border:1px solid #dfe4ed;border-radius:11px;padding:0 11px}.card-import-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.card-import-kpi{background:#f7f9fc;border:1px solid #e8ecf3;border-radius:12px;padding:11px}.card-import-kpi small{display:block;color:#7a859a;font-size:11px}.card-import-kpi strong{display:block;margin-top:4px;font-size:15px}.card-preview-wrap{overflow:auto;border:1px solid #e5e9f2;border-radius:13px}.card-preview-table{width:100%;border-collapse:collapse;min-width:720px}.card-preview-table th,.card-preview-table td{padding:10px 11px;border-bottom:1px solid #edf0f5;text-align:left;font-size:12px}.card-preview-table th{background:#f7f9fc;color:#536079}.pill-installment{display:inline-block;background:#eee9ff;color:#6849e8;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800}.pill-refund{display:inline-block;background:#e8f8f2;color:#13845f;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800}.card-file-note{margin-top:10px;font-size:12px;color:#6c7890}.card-file-note.warn{background:#fff7df;border:1px solid #f4df9f;border-radius:10px;padding:10px;color:#84620e}.card-import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}@media(max-width:800px){.cards-grid{grid-template-columns:1fr}.card-import-controls{grid-template-columns:1fr}.card-import-summary{grid-template-columns:1fr 1fr}}
+
+.card-history{margin-top:18px}
+.card-history h3{margin:0 0 10px;font-size:18px}
+.statement-list{display:grid;gap:10px}
+.statement-item{border:1px solid #e5e9f2;border-radius:14px;background:#fff;overflow:hidden}
+.statement-head{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:10px;align-items:center;padding:13px 14px;cursor:pointer}
+.statement-head:hover{background:#fafbfe}
+.statement-title{font-weight:800}
+.statement-sub{font-size:12px;color:#7a8598;margin-top:3px}
+.statement-total{font-weight:900;text-align:right}
+.statement-toggle{border:0;background:#f3f5f9;border-radius:9px;width:34px;height:34px;cursor:pointer}
+.statement-body{display:none;border-top:1px solid #edf0f5;padding:10px 14px 14px;background:#fcfdff}
+.statement-item.open .statement-body{display:block}
+.statement-table{width:100%;border-collapse:collapse;min-width:680px}
+.statement-table th,.statement-table td{padding:9px 8px;border-bottom:1px solid #edf0f5;font-size:12px;text-align:left}
+.statement-table th{color:#637089;background:#f7f9fc}
+.statement-summary{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 12px;font-size:12px;color:#657086}
+.statement-summary strong{color:#222}
+@media(max-width:800px){
+  .statement-head{grid-template-columns:1fr auto}
+  .statement-head>div:nth-child(2),.statement-head>div:nth-child(3){grid-column:1}
+  .statement-total{text-align:left}
+  .statement-body{overflow:auto}
+}
+
 </style>
 </head>
 <body>
@@ -353,9 +378,16 @@
         <div id="cardPreview" class="card-preview-wrap" style="display:none"><table class="card-preview-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Parcela</th><th>Valor</th></tr></thead><tbody id="cardPreviewBody"></tbody></table></div>
         <div id="cardImportActions" class="card-import-actions" style="display:none"><button id="cardConfirmImportBtn" type="button" class="btn btn-primary">Confirmar importação</button><button id="cardCancelImportBtn" type="button" class="btn btn-light">Cancelar</button></div>
       </div>
-    </section>
+    
+  <div class="card-history">
+    <h3>Faturas importadas</h3>
+    <div id="cardStatementsList" class="statement-list">
+      <div class="card-empty">Carregando faturas...</div>
+    </div>
+  </div>
+</section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 2</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 3</div>
   </main>
 </div>
 
@@ -417,6 +449,99 @@ async function loadCreditCards(){
     if(retry)retry.style.display='inline-flex';
   }
 }
+
+async function loadCardStatements(){
+  const host=document.getElementById('cardStatementsList');
+  if(!host)return;
+  host.innerHTML='<div class="card-empty">Carregando faturas...</div>';
+  try{
+    const {data:statements,error}=await sb.from('card_statements')
+      .select('id,credit_card_id,competence,closing_date,due_date,total_amount,source_file_name,source_format,status,created_at')
+      .eq('family_id',FAMILY_ID)
+      .order('competence',{ascending:false})
+      .order('created_at',{ascending:false});
+    if(error)throw error;
+    if(!statements?.length){
+      host.innerHTML='<div class="card-empty">Nenhuma fatura importada ainda.</div>';
+      return;
+    }
+    const cardMap=new Map(creditCards.map(c=>[c.id,c]));
+    host.innerHTML=statements.map(st=>{
+      const card=cardMap.get(st.credit_card_id);
+      const cardName=card?.name||'Cartão';
+      return `<div class="statement-item" data-statement="${st.id}">
+        <div class="statement-head" onclick="toggleStatement('${st.id}')">
+          <div>
+            <div class="statement-title">${esc(cardName)}</div>
+            <div class="statement-sub">${monthLabel(st.competence)} • ${(st.source_format||'').toUpperCase()}${st.source_file_name?' • '+esc(st.source_file_name):''}</div>
+          </div>
+          <div><div class="statement-sub">Status</div><strong>${esc(st.status||'imported')}</strong></div>
+          <div class="statement-total"><div class="statement-sub">Total da fatura</div>${fmtBRL.format(Number(st.total_amount||0))}</div>
+          <button class="statement-toggle" type="button">⌄</button>
+        </div>
+        <div class="statement-body" id="statementBody-${st.id}">
+          <div class="card-empty">Clique para carregar os lançamentos.</div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    console.error('Erro ao carregar faturas:',e);
+    host.innerHTML=`<div class="card-empty" style="color:#b42318">Erro ao carregar faturas: ${esc(e.message||String(e))}</div>`;
+  }
+}
+
+async function toggleStatement(statementId){
+  const item=document.querySelector(`.statement-item[data-statement="${statementId}"]`);
+  const body=document.getElementById(`statementBody-${statementId}`);
+  if(!item||!body)return;
+  const opening=!item.classList.contains('open');
+  item.classList.toggle('open');
+  if(!opening || body.dataset.loaded==='1')return;
+
+  body.innerHTML='<div class="card-empty">Carregando lançamentos...</div>';
+  try{
+    const {data,error}=await sb.from('card_transactions')
+      .select('id,transaction_date,description,amount,entry_type,installment_number,installment_total,card_last4,status')
+      .eq('statement_id',statementId)
+      .order('transaction_date',{ascending:true});
+    if(error)throw error;
+
+    const rows=data||[];
+    const debits=rows.filter(r=>r.entry_type!=='credit').reduce((a,r)=>a+Number(r.amount||0),0);
+    const credits=rows.filter(r=>r.entry_type==='credit').reduce((a,r)=>a+Number(r.amount||0),0);
+    const net=debits-credits;
+
+    body.innerHTML=`
+      <div class="statement-summary">
+        <span>Itens: <strong>${rows.length}</strong></span>
+        <span>Compras/débitos: <strong>${fmtBRL.format(debits)}</strong></span>
+        <span>Créditos/estornos: <strong>${fmtBRL.format(credits)}</strong></span>
+        <span>Saldo dos itens: <strong>${fmtBRL.format(net)}</strong></span>
+      </div>
+      <div style="overflow:auto">
+        <table class="statement-table">
+          <thead><tr><th>Data</th><th>Descrição</th><th>Parcela</th><th>Final</th><th>Tipo</th><th>Valor</th></tr></thead>
+          <tbody>${rows.map(r=>{
+            const isCredit=r.entry_type==='credit';
+            const parc=r.installment_number&&r.installment_total?`${r.installment_number}/${r.installment_total}`:'—';
+            return `<tr>
+              <td>${brd(r.transaction_date)}</td>
+              <td>${esc(r.description)}</td>
+              <td>${parc}</td>
+              <td>${r.card_last4?esc(r.card_last4):'—'}</td>
+              <td>${isCredit?'Crédito/estorno':'Compra'}</td>
+              <td class="${isCredit?'amount-pos':'amount-neg'}">${isCredit?'+ ':'- '}${fmtBRL.format(Number(r.amount||0))}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>`;
+    body.dataset.loaded='1';
+  }catch(e){
+    console.error('Erro ao carregar itens da fatura:',e);
+    body.innerHTML=`<div class="card-empty" style="color:#b42318">Erro ao carregar lançamentos: ${esc(e.message||String(e))}</div>`;
+  }
+}
+
 function resetCardImport(){cardImportDraft=null;const f=document.getElementById('cardImportFile');if(f)f.value='';document.getElementById('cardImportSummary').style.display='none';document.getElementById('cardPreview').style.display='none';document.getElementById('cardImportActions').style.display='none';document.getElementById('cardPreviewBody').innerHTML='';}
 function renderCardDraft(d){const deb=d.rows.filter(r=>r.amount<0).reduce((a,r)=>a+Math.abs(r.amount),0),cred=d.rows.filter(r=>r.amount>0).reduce((a,r)=>a+Math.abs(r.amount),0);document.getElementById('cardKpiCompetence').textContent=monthLabel(d.competence);document.getElementById('cardKpiItems').textContent=d.rows.length;document.getElementById('cardKpiDebits').textContent=fmtBRL.format(deb);document.getElementById('cardKpiCredits').textContent=fmtBRL.format(cred);document.getElementById('cardPreviewBody').innerHTML=d.rows.map(r=>`<tr><td>${brd(r.date)}</td><td>${esc(r.memo)}</td><td>${r.is_refund?'<span class="pill-refund">Crédito/estorno</span>':'Compra'}</td><td>${r.installment_number?`<span class="pill-installment">${r.installment_number}/${r.installment_total}</span>`:'—'}</td><td style="font-weight:800;${r.amount>=0?'color:#0f9f78':'color:#df2f37'}">${fmtBRL.format(r.amount)}</td></tr>`).join('');document.getElementById('cardImportSummary').style.display='grid';document.getElementById('cardPreview').style.display='block';document.getElementById('cardImportActions').style.display='flex';}
 async function analyzeCardFile(){const card=creditCards.find(c=>c.id===document.getElementById('cardImportCard').value),file=document.getElementById('cardImportFile').files[0],note=document.getElementById('cardImportNote');if(!card)return alert('Selecione o cartão.');if(!file)return alert('Selecione o arquivo da fatura.');const ext=(file.name.split('.').pop()||'').toLowerCase();if(ext==='pdf'){resetCardImport();note.className='card-file-note warn';note.textContent='O Itaú PDF está cadastrado, mas a leitura automática do PDF será implementada na próxima etapa. Nenhum dado foi gravado.';return;}if(ext!=='ofx'){resetCardImport();note.className='card-file-note warn';note.textContent='Nesta versão, use um arquivo OFX do Nubank.';return;}try{const d=parseCardOFX(await file.text());if(!d.rows.length)throw new Error('Nenhuma movimentação encontrada.');cardImportDraft={...d,card,file_name:file.name};note.className='card-file-note';note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;renderCardDraft(cardImportDraft);}catch(e){console.error(e);note.className='card-file-note warn';note.textContent='Não foi possível interpretar este OFX: '+e.message;}}
@@ -773,7 +898,7 @@ function showSection(id){
   document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.section===id));
   document.getElementById("pageTitle").textContent={dashboard:"Visão geral",transactions:"Lançamentos",forecast:"Previsão",bankImport:"Importar extrato",reconciliation:"Conciliação",cards:"Cartões"}[id]||"Casa em Dia";
   if(id==="forecast")setTimeout(renderForecast,20);
-  if(id==="cards")setTimeout(()=>loadCreditCards(),20);
+  if(id==="cards")setTimeout(async()=>{await loadCreditCards();await loadCardStatements();},20);
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showSection(b.dataset.section));
 document.getElementById("monthSelect").onchange=e=>{state.selected=e.target.value;refreshAll();};
