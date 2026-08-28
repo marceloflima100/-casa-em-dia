@@ -186,6 +186,34 @@
   .statement-body{overflow:auto}
 }
 
+
+.statement-head{grid-template-columns:1.3fr .7fr .7fr auto}
+.statement-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.statement-badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;background:#eef2f7;color:#58657a}
+.statement-badge.ok{background:#e8f7f1;color:#0f7b5c}
+.statement-badge.warn{background:#fff4da;color:#8a6500}
+.statement-details-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0 12px}
+.statement-kpi{background:#f7f9fc;border:1px solid #e9edf4;border-radius:10px;padding:9px}
+.statement-kpi small{display:block;color:#7b879a;font-size:10px}
+.statement-kpi strong{display:block;margin-top:3px;font-size:13px}
+.statement-section-title{font-size:12px;font-weight:800;color:#59667b;margin:14px 0 6px}
+.projected-list{display:grid;gap:6px}
+.projected-row{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border:1px dashed #dfe5ee;border-radius:9px;background:#fff}
+.projected-row span{font-size:12px;color:#5f6b80}
+.projected-row strong{font-size:12px}
+@media(max-width:800px){
+  .statement-details-grid{grid-template-columns:1fr 1fr}
+}
+
+
+.user-session{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.user-session .user-name{font-weight:700}
+.user-session .btn-logout{margin:0}
+@media(max-width:700px){
+  .user-session{gap:6px}
+  .user-session .btn-logout{padding:7px 10px}
+}
+
 </style>
 </head>
 <body>
@@ -237,7 +265,7 @@
         <div class="sync-box">
           <div>
             <label>Usuário conectado</label><br>
-            <select id="currentUser" disabled><option>Marcelo</option><option>Dayse</option></select>
+            <div class="user-session"><select id="currentUser" disabled><option>Marcelo</option><option>Dayse</option></select>
           </div>
           <div class="update-info">
             <div>Última sincronização: <strong id="lastUpdated">—</strong></div>
@@ -259,8 +287,7 @@
       <button class="btn btn-green" id="addIncome">＋ Receita</button>
       <button class="btn btn-light" id="generateForecast">✦ Gerar previsão</button>
       <button class="btn btn-light" id="reloadFile">↻ Atualizar do banco</button>
-      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button>
-      <button class="btn btn-danger" id="logoutBtn">Sair</button>
+      <button class="btn btn-light" id="exportBackup">⇩ Backup JSON</button><button class="btn btn-danger" id="logoutBtn">Sair</button></div>
       <label class="btn btn-light" style="cursor:pointer">⇧ Importar backup
         <input id="importBackup" type="file" accept=".json" hidden>
       </label>
@@ -387,7 +414,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 3</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 5</div>
   </main>
 </div>
 
@@ -461,23 +488,61 @@ async function loadCardStatements(){
       .order('competence',{ascending:false})
       .order('created_at',{ascending:false});
     if(error)throw error;
+
     if(!statements?.length){
       host.innerHTML='<div class="card-empty">Nenhuma fatura importada ainda.</div>';
       return;
     }
+
+    const ids=statements.map(x=>x.id);
+    const {data:counts,error:countErr}=await sb.from('card_transactions')
+      .select('statement_id,entry_type,amount,installment_number,installment_total')
+      .in('statement_id',ids);
+    if(countErr)throw countErr;
+
+    const summaryMap=new Map();
+    for(const row of counts||[]){
+      if(!summaryMap.has(row.statement_id)){
+        summaryMap.set(row.statement_id,{items:0,debits:0,credits:0,installments:0});
+      }
+      const x=summaryMap.get(row.statement_id);
+      x.items++;
+      if(row.entry_type==='credit')x.credits+=Number(row.amount||0);
+      else x.debits+=Number(row.amount||0);
+      if(row.installment_number&&row.installment_total)x.installments++;
+    }
+
     const cardMap=new Map(creditCards.map(c=>[c.id,c]));
     host.innerHTML=statements.map(st=>{
       const card=cardMap.get(st.credit_card_id);
       const cardName=card?.name||'Cartão';
+      const sm=summaryMap.get(st.id)||{items:0,debits:0,credits:0,installments:0};
+      const net=sm.debits-sm.credits;
+      const diff=Math.abs(Number(st.total_amount||0)-net);
+      const statusBadge=diff<=0.02
+        ?'<span class="statement-badge ok">Itens conferem</span>'
+        :`<span class="statement-badge warn">Diferença ${fmtBRL.format(diff)}</span>`;
+
       return `<div class="statement-item" data-statement="${st.id}">
         <div class="statement-head" onclick="toggleStatement('${st.id}')">
           <div>
             <div class="statement-title">${esc(cardName)}</div>
-            <div class="statement-sub">${monthLabel(st.competence)} • ${(st.source_format||'').toUpperCase()}${st.source_file_name?' • '+esc(st.source_file_name):''}</div>
+            <div class="statement-sub">${monthLabel(st.competence)} • ${(st.source_format||'').toUpperCase()}</div>
+            <div class="statement-badges">
+              <span class="statement-badge">${sm.items} itens</span>
+              ${sm.installments?`<span class="statement-badge">${sm.installments} parcelados</span>`:''}
+              ${statusBadge}
+            </div>
           </div>
-          <div><div class="statement-sub">Status</div><strong>${esc(st.status||'imported')}</strong></div>
-          <div class="statement-total"><div class="statement-sub">Total da fatura</div>${fmtBRL.format(Number(st.total_amount||0))}</div>
-          <button class="statement-toggle" type="button">⌄</button>
+          <div>
+            <div class="statement-sub">Compras</div>
+            <strong>${fmtBRL.format(sm.debits)}</strong>
+          </div>
+          <div class="statement-total">
+            <div class="statement-sub">Total da fatura</div>
+            ${fmtBRL.format(Number(st.total_amount||0))}
+          </div>
+          <button class="statement-toggle" type="button" aria-label="Expandir fatura">⌄</button>
         </div>
         <div class="statement-body" id="statementBody-${st.id}">
           <div class="card-empty">Clique para carregar os lançamentos.</div>
@@ -489,39 +554,63 @@ async function loadCardStatements(){
     host.innerHTML=`<div class="card-empty" style="color:#b42318">Erro ao carregar faturas: ${esc(e.message||String(e))}</div>`;
   }
 }
-
 async function toggleStatement(statementId){
   const item=document.querySelector(`.statement-item[data-statement="${statementId}"]`);
   const body=document.getElementById(`statementBody-${statementId}`);
   if(!item||!body)return;
+
   const opening=!item.classList.contains('open');
   item.classList.toggle('open');
   if(!opening || body.dataset.loaded==='1')return;
 
   body.innerHTML='<div class="card-empty">Carregando lançamentos...</div>';
+
   try{
-    const {data,error}=await sb.from('card_transactions')
-      .select('id,transaction_date,description,amount,entry_type,installment_number,installment_total,card_last4,status')
+    const {data:rows,error}=await sb.from('card_transactions')
+      .select('id,transaction_date,description,amount,entry_type,installment_number,installment_total,card_last4,status,purchase_group_id')
       .eq('statement_id',statementId)
       .order('transaction_date',{ascending:true});
     if(error)throw error;
 
-    const rows=data||[];
-    const debits=rows.filter(r=>r.entry_type!=='credit').reduce((a,r)=>a+Number(r.amount||0),0);
-    const credits=rows.filter(r=>r.entry_type==='credit').reduce((a,r)=>a+Number(r.amount||0),0);
+    const txs=rows||[];
+    const purchaseGroups=txs.map(r=>r.purchase_group_id).filter(Boolean);
+    let projected=[];
+    if(purchaseGroups.length){
+      const {data:future,error:futErr}=await sb.from('card_installments')
+        .select('purchase_group_id,installment_number,installment_total,competence,amount,status')
+        .in('purchase_group_id',purchaseGroups)
+        .eq('status','projected')
+        .order('competence',{ascending:true});
+      if(futErr)throw futErr;
+      projected=future||[];
+    }
+
+    const debits=txs.filter(r=>r.entry_type!=='credit').reduce((a,r)=>a+Number(r.amount||0),0);
+    const credits=txs.filter(r=>r.entry_type==='credit').reduce((a,r)=>a+Number(r.amount||0),0);
     const net=debits-credits;
+    const parcelados=txs.filter(r=>r.installment_number&&r.installment_total).length;
 
     body.innerHTML=`
-      <div class="statement-summary">
-        <span>Itens: <strong>${rows.length}</strong></span>
-        <span>Compras/débitos: <strong>${fmtBRL.format(debits)}</strong></span>
-        <span>Créditos/estornos: <strong>${fmtBRL.format(credits)}</strong></span>
-        <span>Saldo dos itens: <strong>${fmtBRL.format(net)}</strong></span>
+      <div class="statement-details-grid">
+        <div class="statement-kpi"><small>Lançamentos</small><strong>${txs.length}</strong></div>
+        <div class="statement-kpi"><small>Compras/débitos</small><strong>${fmtBRL.format(debits)}</strong></div>
+        <div class="statement-kpi"><small>Créditos/estornos</small><strong>${fmtBRL.format(credits)}</strong></div>
+        <div class="statement-kpi"><small>Saldo dos itens</small><strong>${fmtBRL.format(net)}</strong></div>
       </div>
+
       <div style="overflow:auto">
         <table class="statement-table">
-          <thead><tr><th>Data</th><th>Descrição</th><th>Parcela</th><th>Final</th><th>Tipo</th><th>Valor</th></tr></thead>
-          <tbody>${rows.map(r=>{
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Descrição</th>
+              <th>Parcela</th>
+              <th>Final</th>
+              <th>Tipo</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>${txs.map(r=>{
             const isCredit=r.entry_type==='credit';
             const parc=r.installment_number&&r.installment_total?`${r.installment_number}/${r.installment_total}`:'—';
             return `<tr>
@@ -534,14 +623,24 @@ async function toggleStatement(statementId){
             </tr>`;
           }).join('')}</tbody>
         </table>
-      </div>`;
+      </div>
+
+      ${projected.length?`
+        <div class="statement-section-title">Parcelas futuras previstas</div>
+        <div class="projected-list">
+          ${projected.map(p=>`<div class="projected-row">
+            <span>${monthLabel(p.competence)} • ${p.installment_number}/${p.installment_total}</span>
+            <strong>${fmtBRL.format(Number(p.amount||0))}</strong>
+          </div>`).join('')}
+        </div>
+      `:''}
+    `;
     body.dataset.loaded='1';
   }catch(e){
     console.error('Erro ao carregar itens da fatura:',e);
     body.innerHTML=`<div class="card-empty" style="color:#b42318">Erro ao carregar lançamentos: ${esc(e.message||String(e))}</div>`;
   }
 }
-
 function resetCardImport(){cardImportDraft=null;const f=document.getElementById('cardImportFile');if(f)f.value='';document.getElementById('cardImportSummary').style.display='none';document.getElementById('cardPreview').style.display='none';document.getElementById('cardImportActions').style.display='none';document.getElementById('cardPreviewBody').innerHTML='';}
 function renderCardDraft(d){const deb=d.rows.filter(r=>r.amount<0).reduce((a,r)=>a+Math.abs(r.amount),0),cred=d.rows.filter(r=>r.amount>0).reduce((a,r)=>a+Math.abs(r.amount),0);document.getElementById('cardKpiCompetence').textContent=monthLabel(d.competence);document.getElementById('cardKpiItems').textContent=d.rows.length;document.getElementById('cardKpiDebits').textContent=fmtBRL.format(deb);document.getElementById('cardKpiCredits').textContent=fmtBRL.format(cred);document.getElementById('cardPreviewBody').innerHTML=d.rows.map(r=>`<tr><td>${brd(r.date)}</td><td>${esc(r.memo)}</td><td>${r.is_refund?'<span class="pill-refund">Crédito/estorno</span>':'Compra'}</td><td>${r.installment_number?`<span class="pill-installment">${r.installment_number}/${r.installment_total}</span>`:'—'}</td><td style="font-weight:800;${r.amount>=0?'color:#0f9f78':'color:#df2f37'}">${fmtBRL.format(r.amount)}</td></tr>`).join('');document.getElementById('cardImportSummary').style.display='grid';document.getElementById('cardPreview').style.display='block';document.getElementById('cardImportActions').style.display='flex';}
 async function analyzeCardFile(){const card=creditCards.find(c=>c.id===document.getElementById('cardImportCard').value),file=document.getElementById('cardImportFile').files[0],note=document.getElementById('cardImportNote');if(!card)return alert('Selecione o cartão.');if(!file)return alert('Selecione o arquivo da fatura.');const ext=(file.name.split('.').pop()||'').toLowerCase();if(ext==='pdf'){resetCardImport();note.className='card-file-note warn';note.textContent='O Itaú PDF está cadastrado, mas a leitura automática do PDF será implementada na próxima etapa. Nenhum dado foi gravado.';return;}if(ext!=='ofx'){resetCardImport();note.className='card-file-note warn';note.textContent='Nesta versão, use um arquivo OFX do Nubank.';return;}try{const d=parseCardOFX(await file.text());if(!d.rows.length)throw new Error('Nenhuma movimentação encontrada.');cardImportDraft={...d,card,file_name:file.name};note.className='card-file-note';note.textContent=`${d.rows.length} movimentações encontradas. Revise antes de confirmar.`;renderCardDraft(cardImportDraft);}catch(e){console.error(e);note.className='card-file-note warn';note.textContent='Não foi possível interpretar este OFX: '+e.message;}}
