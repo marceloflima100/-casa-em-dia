@@ -128,6 +128,41 @@
   .auth-card input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(108,92,231,.1)}
   .auth-card button{width:100%;margin-top:16px;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6c5ce7,#8b5cf6);color:#fff;font-weight:800;cursor:pointer}
   .auth-error{min-height:20px;color:#dc2626;font-size:12px;margin-top:10px}.auth-hidden{display:none!important}
+
+  /* ===== Importador OFX Itaú ===== */
+  .import-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start}
+  .import-card{background:#fff;border-radius:18px;box-shadow:var(--shadow);padding:18px}
+  .import-card h3{margin:0 0 6px;font-size:16px}
+  .import-card p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.45}
+  .import-field{margin-bottom:13px}
+  .import-field label{display:block;font-size:11px;font-weight:800;color:#627086;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+  .import-field select,.import-field input[type=file]{width:100%;border:1px solid var(--line);border-radius:11px;padding:10px;background:#fff;color:var(--ink);font-size:14px}
+  .import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .import-status{margin-top:12px;padding:10px 12px;border-radius:11px;background:#f7f8fc;color:var(--muted);font-size:12px;line-height:1.45}
+  .import-status.ok{background:#e9fbf5;color:#087b65}
+  .import-status.warn{background:#fff7e6;color:#946200}
+  .import-status.error{background:#fff1f2;color:#be123c}
+  .ofx-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .ofx-stat{background:#f7f8fc;border-radius:12px;padding:11px}
+  .ofx-stat span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:800}
+  .ofx-stat b{display:block;margin-top:4px;font-size:14px}
+  .ofx-table-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:13px}
+  .ofx-table{min-width:760px}
+  .ofx-table th{top:0}
+  .ofx-table td{padding:8px 7px;font-size:12px}
+  .ofx-table .credit{color:#078b70;font-weight:800;text-align:right}
+  .ofx-table .debit{color:#dc2626;font-weight:800;text-align:right}
+  .ofx-table .dup{background:#fff7e6}
+  .ofx-empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
+  .import-note{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.4}
+  @media(max-width:900px){.import-layout{grid-template-columns:1fr}.ofx-summary{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:680px){
+    .ofx-summary{grid-template-columns:1fr 1fr}
+    .import-card{padding:14px}
+    .import-actions .btn{min-height:44px}
+    .import-field select,.import-field input[type=file]{font-size:16px;min-height:44px}
+  }
+
 </style>
 </head>
 <body>
@@ -156,6 +191,7 @@
       <button class="active" data-section="dashboard">▦ <span>Visão geral</span></button>
       <button data-section="transactions">▤ <span>Lançamentos</span></button>
       <button data-section="forecast">↗ <span>Previsão</span></button>
+      <button data-section="bankImport">⇩ <span>Importar extrato</span></button>
     </div>
     <div class="side-note">
       <strong>Online e compartilhado</strong><br>
@@ -283,6 +319,69 @@
         <h3>Projeção visual</h3>
         <div class="panel-sub">Saldo ao fim de cada mês.</div>
         <canvas id="forecastChart" width="900" height="260"></canvas>
+      </div>
+    </section>
+
+
+    <section id="bankImport" class="section">
+      <div class="import-layout">
+        <div class="import-card">
+          <h3>Importar extrato Itaú</h3>
+          <p>Selecione a conta e um arquivo OFX. O arquivo é lido no navegador e só é gravado no Supabase depois da sua confirmação.</p>
+
+          <div class="import-field">
+            <label for="bankAccountSelect">Conta</label>
+            <select id="bankAccountSelect">
+              <option value="">Carregando contas...</option>
+            </select>
+          </div>
+
+          <div class="import-field">
+            <label for="ofxFile">Arquivo OFX</label>
+            <input id="ofxFile" type="file" accept=".ofx,application/x-ofx,text/plain">
+          </div>
+
+          <div class="import-actions">
+            <button type="button" class="btn btn-light" id="readOfxBtn">Pré-visualizar</button>
+            <button type="button" class="btn btn-primary" id="confirmOfxBtn" disabled>Confirmar importação</button>
+          </div>
+
+          <div id="ofxImportStatus" class="import-status">Nenhum arquivo selecionado.</div>
+
+          <div class="import-note">
+            Duplicidades são verificadas pelo <strong>FITID</strong> do Itaú. Linhas já importadas não serão gravadas novamente.
+          </div>
+        </div>
+
+        <div class="import-card">
+          <h3>Pré-visualização</h3>
+          <p id="ofxPeriodLabel">Selecione um arquivo OFX para visualizar as movimentações.</p>
+
+          <div class="ofx-summary">
+            <div class="ofx-stat"><span>Movimentações</span><b id="ofxCount">0</b></div>
+            <div class="ofx-stat"><span>Créditos</span><b id="ofxCredits">R$ 0,00</b></div>
+            <div class="ofx-stat"><span>Débitos</span><b id="ofxDebits">R$ 0,00</b></div>
+            <div class="ofx-stat"><span>Duplicadas</span><b id="ofxDuplicates">0</b></div>
+          </div>
+
+          <div class="ofx-table-wrap">
+            <table class="ofx-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Descrição</th>
+                  <th>Tipo</th>
+                  <th style="text-align:right">Valor</th>
+                  <th>FITID</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="ofxPreviewBody">
+                <tr><td colspan="6"><div class="ofx-empty">A pré-visualização aparecerá aqui.</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -637,7 +736,7 @@ function addBlank(type){
 function showSection(id){
   document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===id));
   document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.section===id));
-  document.getElementById("pageTitle").textContent={dashboard:"Visão geral",transactions:"Lançamentos",forecast:"Previsão"}[id];
+  document.getElementById("pageTitle").textContent={dashboard:"Visão geral",transactions:"Lançamentos",forecast:"Previsão",bankImport:"Importar extrato"}[id]||"Casa em Dia";
   if(id==="forecast")setTimeout(renderForecast,20);
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showSection(b.dataset.section));
@@ -740,8 +839,198 @@ async function startSession(session){
   if(merr||!membership||membership.family_id!==FAMILY_ID) throw new Error("Este usuário não está vinculado à família configurada.");
   document.getElementById("currentUser").value=currentDisplayName==="Dayse"?"Dayse":"Marcelo";
   document.getElementById("authOverlay").classList.add("auth-hidden");
-  isBooting=false; await loadFromSupabase();
+  isBooting=false; await loadFromSupabase(); await loadBankAccounts();
 }
+
+// ===== Importador OFX Itaú =====
+let bankAccountsCache = [];
+let ofxPreview = null;
+
+function escapeHtml(v){
+  return String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));
+}
+function ofxTag(block,tag){
+  const m=String(block||"").match(new RegExp("<"+tag+">\\s*([^<\\r\\n]*)","i"));
+  return m ? m[1].trim() : "";
+}
+function ofxDate(raw){
+  const m=String(raw||"").match(/^(\d{4})(\d{2})(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+}
+function formatDateBR(iso){
+  const m=String(iso||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso||"";
+}
+function parseItauOfx(text){
+  const normalized=String(text||"").replace(/\r/g,"");
+  const bankId=ofxTag(normalized,"BANKID");
+  const acctId=ofxTag(normalized,"ACCTID");
+  const currency=ofxTag(normalized,"CURDEF");
+  const start=ofxDate(ofxTag(normalized,"DTSTART"));
+  const end=ofxDate(ofxTag(normalized,"DTEND"));
+  const blocks=normalized.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi)||[];
+  const transactions=blocks.map((b,i)=>{
+    const rawType=ofxTag(b,"TRNTYPE").toUpperCase();
+    const amount=Number(ofxTag(b,"TRNAMT").replace(",","."));
+    const fitid=ofxTag(b,"FITID");
+    const date=ofxDate(ofxTag(b,"DTPOSTED"));
+    const memo=ofxTag(b,"MEMO")||"Sem descrição";
+    const type=(rawType==="CREDIT" || amount>0)?"credit":"debit";
+    return {fitid,date,memo,type,amount:Number.isFinite(amount)?amount:0,index:i,duplicate:false};
+  }).filter(x=>x.fitid && x.date);
+  return {bankId,acctId,currency,start,end,transactions};
+}
+async function loadBankAccounts(){
+  const sel=document.getElementById("bankAccountSelect");
+  if(!sel) return;
+  sel.innerHTML='<option value="">Carregando contas...</option>';
+  const {data,error}=await sb.from("bank_accounts")
+    .select("id,nickname,holder_name,bank_name,bank_code")
+    .eq("family_id",FAMILY_ID)
+    .eq("active",true)
+    .order("nickname");
+  if(error){
+    console.error(error);
+    sel.innerHTML='<option value="">Não foi possível carregar</option>';
+    document.getElementById("ofxImportStatus").className="import-status error";
+    document.getElementById("ofxImportStatus").textContent="Não foi possível acessar bank_accounts. Verifique se a tabela está exposta na Data API e se as permissões foram concedidas.";
+    return;
+  }
+  bankAccountsCache=data||[];
+  const itau=bankAccountsCache.filter(a=>String(a.bank_code)==="0341" || /itaú|itau/i.test(a.bank_name||""));
+  sel.innerHTML='<option value="">Selecione a conta...</option>'+itau.map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.nickname)}</option>`).join("");
+}
+async function checkOfxDuplicates(accountId,rows){
+  if(!rows.length) return new Set();
+  const fitids=rows.map(x=>x.fitid);
+  const dup=new Set();
+  for(let i=0;i<fitids.length;i+=100){
+    const chunk=fitids.slice(i,i+100);
+    const {data,error}=await sb.from("bank_statement_transactions")
+      .select("fitid")
+      .eq("bank_account_id",accountId)
+      .in("fitid",chunk);
+    if(error) throw error;
+    (data||[]).forEach(r=>dup.add(r.fitid));
+  }
+  return dup;
+}
+function renderOfxPreview(){
+  const body=document.getElementById("ofxPreviewBody");
+  const data=ofxPreview;
+  if(!data){
+    body.innerHTML='<tr><td colspan="6"><div class="ofx-empty">A pré-visualização aparecerá aqui.</div></td></tr>';
+    return;
+  }
+  const rows=data.transactions;
+  const credits=rows.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0);
+  const debits=rows.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0);
+  const dups=rows.filter(x=>x.duplicate).length;
+  document.getElementById("ofxCount").textContent=rows.length;
+  document.getElementById("ofxCredits").textContent=fmtBRL.format(credits);
+  document.getElementById("ofxDebits").textContent=fmtBRL.format(debits);
+  document.getElementById("ofxDuplicates").textContent=dups;
+  document.getElementById("ofxPeriodLabel").textContent=`Período: ${formatDateBR(data.start)} a ${formatDateBR(data.end)} • Banco ${data.bankId||"—"} • ${data.currency||"BRL"}`;
+  body.innerHTML=rows.length?rows.map(r=>`
+    <tr class="${r.duplicate?"dup":""}">
+      <td>${escapeHtml(formatDateBR(r.date))}</td>
+      <td>${escapeHtml(r.memo)}</td>
+      <td>${r.type==="credit"?"Crédito":"Débito"}</td>
+      <td class="${r.type==="credit"?"credit":"debit"}">${fmtBRL.format(r.amount)}</td>
+      <td>${escapeHtml(r.fitid)}</td>
+      <td>${r.duplicate?'<span class="badge badge-prev">JÁ IMPORTADO</span>':'<span class="badge badge-real">NOVO</span>'}</td>
+    </tr>`).join(""):'<tr><td colspan="6"><div class="ofx-empty">Nenhuma movimentação encontrada no OFX.</div></td></tr>';
+}
+async function previewSelectedOfx(){
+  const accountId=document.getElementById("bankAccountSelect").value;
+  const file=document.getElementById("ofxFile").files[0];
+  const status=document.getElementById("ofxImportStatus");
+  const confirmBtn=document.getElementById("confirmOfxBtn");
+  confirmBtn.disabled=true;
+  if(!accountId){status.className="import-status warn";status.textContent="Selecione primeiro a conta Itaú.";return;}
+  if(!file){status.className="import-status warn";status.textContent="Selecione um arquivo .ofx.";return;}
+  try{
+    status.className="import-status";status.textContent="Lendo arquivo e verificando duplicidades...";
+    const text=await file.text();
+    const parsed=parseItauOfx(text);
+    if(!parsed.transactions.length) throw new Error("Nenhuma movimentação válida foi encontrada no arquivo.");
+    if(parsed.bankId && parsed.bankId!=="0341") throw new Error(`O arquivo informa banco ${parsed.bankId}. Este importador está configurado para Itaú (0341).`);
+    const duplicates=await checkOfxDuplicates(accountId,parsed.transactions);
+    parsed.transactions.forEach(r=>r.duplicate=duplicates.has(r.fitid));
+    parsed.accountId=accountId;
+    parsed.fileName=file.name;
+    ofxPreview=parsed;
+    renderOfxPreview();
+    const novos=parsed.transactions.filter(x=>!x.duplicate).length;
+    status.className=novos?"import-status ok":"import-status warn";
+    status.textContent=novos?`${novos} movimentações novas prontas para importação. ${duplicates.size} já existentes serão ignoradas.`:"Todas as movimentações deste arquivo já foram importadas.";
+    confirmBtn.disabled=novos===0;
+  }catch(err){
+    console.error(err);ofxPreview=null;renderOfxPreview();
+    status.className="import-status error";status.textContent="Erro ao ler OFX: "+(err.message||err);
+  }
+}
+async function confirmOfxImport(){
+  const status=document.getElementById("ofxImportStatus");
+  const btn=document.getElementById("confirmOfxBtn");
+  if(!ofxPreview || !currentAuthUser) return;
+  const newRows=ofxPreview.transactions.filter(x=>!x.duplicate);
+  if(!newRows.length) return;
+  btn.disabled=true;btn.textContent="Importando...";
+  status.className="import-status";status.textContent="Gravando lote no Supabase...";
+  try{
+    const batchRow={
+      family_id:FAMILY_ID,
+      bank_account_id:ofxPreview.accountId,
+      file_name:ofxPreview.fileName,
+      period_start:ofxPreview.start||null,
+      period_end:ofxPreview.end||null,
+      imported_by:currentAuthUser.id,
+      status:"confirmed"
+    };
+    const {data:batch,error:batchError}=await sb.from("bank_import_batches").insert(batchRow).select("id").single();
+    if(batchError) throw batchError;
+
+    const rows=newRows.map(r=>({
+      family_id:FAMILY_ID,
+      bank_account_id:ofxPreview.accountId,
+      import_batch_id:batch.id,
+      fitid:r.fitid,
+      transaction_date:r.date,
+      transaction_type:r.type,
+      amount:r.amount,
+      memo:r.memo,
+      reconciliation_status:"unmatched"
+    }));
+    const {error:txError}=await sb.from("bank_statement_transactions").insert(rows);
+    if(txError){
+      await sb.from("bank_import_batches").delete().eq("id",batch.id);
+      throw txError;
+    }
+    newRows.forEach(r=>r.duplicate=true);
+    renderOfxPreview();
+    status.className="import-status ok";
+    status.textContent=`Importação concluída: ${newRows.length} movimentações gravadas. O próximo passo será a conciliação com os lançamentos do controle financeiro.`;
+    btn.textContent="Confirmar importação";
+    btn.disabled=true;
+  }catch(err){
+    console.error(err);
+    status.className="import-status error";
+    status.textContent="Não foi possível importar: "+(err.message||err);
+    btn.textContent="Confirmar importação";
+    btn.disabled=false;
+  }
+}
+document.getElementById("readOfxBtn")?.addEventListener("click",previewSelectedOfx);
+document.getElementById("confirmOfxBtn")?.addEventListener("click",confirmOfxImport);
+document.getElementById("ofxFile")?.addEventListener("change",()=>{
+  ofxPreview=null;renderOfxPreview();
+  const f=document.getElementById("ofxFile").files[0];
+  document.getElementById("ofxImportStatus").className="import-status";
+  document.getElementById("ofxImportStatus").textContent=f?`Arquivo selecionado: ${f.name}. Toque em Pré-visualizar.`:"Nenhum arquivo selecionado.";
+  document.getElementById("confirmOfxBtn").disabled=true;
+});
+
 async function initAuth(){
   fillCategorySelects(); fillMonthSelect();
   const {data:{session}}=await sb.auth.getSession();
