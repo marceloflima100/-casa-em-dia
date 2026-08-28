@@ -126,17 +126,32 @@
   .auth-card label{display:block;font-size:12px;font-weight:700;color:#627086;margin:12px 0 6px}
   .auth-card input{width:100%;border:1px solid #e8ecf4;border-radius:12px;padding:12px 13px;outline:none;font-size:16px}
   .auth-card input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(108,92,231,.1)}
-  .password-wrap{position:relative}
-  .password-wrap input{padding-right:52px}
+  .password-wrap{position:relative;width:100%}
+  .password-wrap input{width:100%;padding-right:50px}
   .password-toggle{
-    position:absolute;right:8px;top:50%;transform:translateY(-50%);
-    width:40px;height:40px;border:0!important;border-radius:10px!important;
-    margin:0!important;padding:0!important;background:#f4f5f9!important;
-    color:#516078!important;display:grid;place-items:center;cursor:pointer;
-    font-size:18px;font-weight:700;box-shadow:none!important
+    position:absolute!important;
+    right:6px!important;
+    top:50%!important;
+    transform:translateY(-50%)!important;
+    width:38px!important;
+    height:38px!important;
+    min-width:38px!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    border-radius:9px!important;
+    background:transparent!important;
+    color:#627086!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    cursor:pointer;
+    font-size:18px;
+    line-height:1;
+    box-shadow:none!important
   }
-  .password-toggle:hover{background:#eceef5!important}
-  .password-toggle:focus{outline:2px solid #8b5cf6;outline-offset:2px}
+  .password-toggle:hover{background:#f4f5f9!important}
+  .password-toggle:focus{outline:2px solid #8b5cf6;outline-offset:1px}
 
   .auth-card button{width:100%;margin-top:16px;border:0;border-radius:12px;padding:12px;background:linear-gradient(135deg,#6c5ce7,#8b5cf6);color:#fff;font-weight:800;cursor:pointer}
   .auth-error{min-height:20px;color:#dc2626;font-size:12px;margin-top:10px}.auth-hidden{display:none!important}
@@ -157,7 +172,7 @@
       <label for="loginPassword">Senha</label>
       <div class="password-wrap">
         <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Sua senha">
-        <button id="togglePassword" class="password-toggle" type="button" aria-label="Mostrar senha" title="Mostrar senha">◉</button>
+        <button id="togglePassword" class="password-toggle" type="button" aria-label="Mostrar senha" title="Mostrar senha">👁</button>
       </div>
       <button id="loginBtn" type="submit">Entrar</button>
       <div id="loginError" class="auth-error"></div>
@@ -785,9 +800,37 @@ async function previewOFX(){const aid=document.getElementById("bankAccountSelect
 async function importOFX(){const rows=ofxPreview?.transactions.filter(x=>!x.duplicate)||[];if(!rows.length)return;const st=document.getElementById("ofxImportStatus");try{const {data:b,error:be}=await sb.from("bank_import_batches").insert({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,file_name:ofxPreview.fileName,period_start:ofxPreview.start||null,period_end:ofxPreview.end||null,imported_by:currentAuthUser.id,status:"confirmed"}).select("id").single();if(be)throw be;const payload=rows.map(x=>({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,import_batch_id:b.id,fitid:x.fitid,transaction_date:x.date,transaction_type:x.type,amount:x.amount,memo:x.memo,reconciliation_status:"unmatched"}));const {error}=await sb.from("bank_statement_transactions").insert(payload);if(error)throw error;st.className="bank-status ok";st.textContent=`${rows.length} movimentações importadas. Abra Conciliação.`;document.getElementById("confirmOfxBtn").disabled=true;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
 function dd(a,b){return Math.round(Math.abs(new Date(a+"T00:00:00Z")-new Date(b+"T00:00:00Z"))/86400000);}
 function score(b,t){const typ=b.transaction_type==="credit"?"income":"expense";if(t.type!==typ)return-999;const dif=Math.abs(Math.abs(b.amount)-Math.abs(t.value));if(dif>5)return-500;const days=dd(b.transaction_date,t.date);if(days>10)return-100;return 100-dif*5-days*4;}
-function cands(b){return state.transactions.map(t=>({t,s:score(b,t)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,12);}
+function cands(b){
+  const expected=b.transaction_type==="credit"?"income":"expense";
+  const bankMonth=String(b.transaction_date||"").slice(0,7);
+
+  const rows=state.transactions
+    .filter(t=>{
+      if(t.type!==expected) return false;
+      const sameMonth=String(t.date||"").slice(0,7)===bankMonth;
+      const nearby=!sameMonth && dd(b.transaction_date,t.date)<=45;
+      return sameMonth || nearby;
+    })
+    .map(t=>{
+      const amountDiff=Math.abs(Math.abs(Number(b.amount||0))-Math.abs(Number(t.value||0)));
+      const days=dd(b.transaction_date,t.date);
+      const sameMonth=String(t.date||"").slice(0,7)===bankMonth;
+      return {t,s:score(b,t),sameMonth,amountDiff,days};
+    });
+
+  return rows
+    .sort((a,b)=>{
+      if(a.sameMonth!==b.sameMonth) return a.sameMonth?-1:1;
+      if(a.amountDiff!==b.amountDiff) return a.amountDiff-b.amountDiff;
+      return a.days-b.days;
+    })
+    .slice(0,60);
+}
 async function loadRecon(){const st=document.getElementById("reconStatusBox");st.className="bank-status";st.textContent="Carregando...";let q=sb.from("bank_statement_transactions").select("*").eq("family_id",FAMILY_ID).order("transaction_date",{ascending:false});const aid=document.getElementById("reconAccount").value,rs=document.getElementById("reconStatus").value,mo=document.getElementById("reconMonth").value;if(aid)q=q.eq("bank_account_id",aid);if(rs)q=q.eq("reconciliation_status",rs);if(mo){const[y,m]=mo.split("-").map(Number),start=`${y}-${String(m).padStart(2,"0")}-01`,d=new Date(Date.UTC(y,m,1)),end=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-01`;q=q.gte("transaction_date",start).lt("transaction_date",end);}const {data,error}=await q;if(error){st.className="bank-status error";st.textContent=error.message;return;}reconciliationRows=data||[];renderRecon();st.className="bank-status ok";st.textContent=`${reconciliationRows.length} movimentações carregadas.`;}
-function renderRecon(){document.getElementById("reconTotal").textContent=reconciliationRows.length;document.getElementById("reconMatched").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="matched").length;document.getElementById("reconPending").textContent=reconciliationRows.filter(x=>["unmatched","suggested"].includes(x.reconciliation_status)).length;document.getElementById("reconIgnored").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="ignored").length;const list=document.getElementById("reconList");if(!reconciliationRows.length){list.innerHTML='<div class="bank-empty">Nenhum item.</div>';return;}list.innerHTML=reconciliationRows.map(b=>{const cs=cands(b),sel=b.matched_transaction_id||cs[0]?.t.id||"",opts=cs.map(x=>`<option value="${x.t.id}" ${String(x.t.id)===String(sel)?"selected":""}>${brd(x.t.date)} • ${esc(x.t.description)} • ${fmtBRL.format(x.t.value)}</option>`).join(""),pill=b.reconciliation_status==="matched"?"matched":b.reconciliation_status==="ignored"?"ignored":"unmatched";return`<div class="recon-item ${pill}" data-id="${b.id}"><div class="recon-top"><div><div class="recon-bank-title">${esc(b.memo)}</div><div class="recon-meta">${brd(b.transaction_date)} • ${b.transaction_type==="credit"?"Crédito":"Débito"}</div><div style="margin-top:6px"><span class="recon-pill ${pill}">${pill.toUpperCase()}</span></div></div><div class="recon-value ${b.transaction_type==="credit"?"positive":"negative"}">${fmtBRL.format(b.amount)}</div></div><div class="recon-candidate"><select class="cand"><option value="">— Nenhum —</option>${opts}</select><div class="recon-actions"><button class="btn btn-primary rec">Conciliar</button><button class="btn btn-light create">Criar lançamento</button><button class="btn btn-light ign">Ignorar</button>${b.reconciliation_status==="matched"?'<button class="btn btn-danger undo">Desfazer</button>':""}</div></div></div>`}).join("");list.querySelectorAll(".rec").forEach(x=>x.onclick=()=>reconcile(x.closest(".recon-item")));list.querySelectorAll(".create").forEach(x=>x.onclick=()=>createTx(x.closest(".recon-item")));list.querySelectorAll(".ign").forEach(x=>x.onclick=()=>ignoreTx(x.closest(".recon-item")));list.querySelectorAll(".undo").forEach(x=>x.onclick=()=>undoTx(x.closest(".recon-item")));}
+function renderRecon(){document.getElementById("reconTotal").textContent=reconciliationRows.length;document.getElementById("reconMatched").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="matched").length;document.getElementById("reconPending").textContent=reconciliationRows.filter(x=>["unmatched","suggested"].includes(x.reconciliation_status)).length;document.getElementById("reconIgnored").textContent=reconciliationRows.filter(x=>x.reconciliation_status==="ignored").length;const list=document.getElementById("reconList");if(!reconciliationRows.length){list.innerHTML='<div class="bank-empty">Nenhum item.</div>';return;}list.innerHTML=reconciliationRows.map(b=>{const cs=cands(b),sel=b.matched_transaction_id||(cs.find(x=>x.s>0)?.t.id)||"",opts=cs.map(x=>{
+    const exact=x.amountDiff<=0.02?" • valor exato":x.amountDiff<=5?" • valor próximo":"";
+    return `<option value="${x.t.id}" ${String(x.t.id)===String(sel)?"selected":""}>${brd(x.t.date)} • ${esc(x.t.description)} • ${fmtBRL.format(x.t.value)}${exact}</option>`;
+  }).join(""),pill=b.reconciliation_status==="matched"?"matched":b.reconciliation_status==="ignored"?"ignored":"unmatched";return`<div class="recon-item ${pill}" data-id="${b.id}"><div class="recon-top"><div><div class="recon-bank-title">${esc(b.memo)}</div><div class="recon-meta">${brd(b.transaction_date)} • ${b.transaction_type==="credit"?"Crédito":"Débito"}</div><div style="margin-top:6px"><span class="recon-pill ${pill}">${pill.toUpperCase()}</span></div></div><div class="recon-value ${b.transaction_type==="credit"?"positive":"negative"}">${fmtBRL.format(b.amount)}</div></div><div class="recon-candidate"><select class="cand"><option value="">— Nenhum —</option>${opts}</select><div class="recon-meta" style="margin-top:7px">A lista mostra lançamentos do mesmo tipo no mês do extrato e também itens próximos em até 45 dias.</div><div class="recon-actions"><button class="btn btn-primary rec">Conciliar</button><button class="btn btn-light create">Criar lançamento</button><button class="btn btn-light ign">Ignorar</button>${b.reconciliation_status==="matched"?'<button class="btn btn-danger undo">Desfazer</button>':""}</div></div></div>`}).join("");list.querySelectorAll(".rec").forEach(x=>x.onclick=()=>reconcile(x.closest(".recon-item")));list.querySelectorAll(".create").forEach(x=>x.onclick=()=>createTx(x.closest(".recon-item")));list.querySelectorAll(".ign").forEach(x=>x.onclick=()=>ignoreTx(x.closest(".recon-item")));list.querySelectorAll(".undo").forEach(x=>x.onclick=()=>undoTx(x.closest(".recon-item")));}
 async function reconcile(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id),tid=card.querySelector(".cand").value;if(!tid){alert("Selecione um lançamento.");return;}const t=state.transactions.find(x=>String(x.id)===String(tid));const {error:e1}=await sb.from("bank_statement_transactions").update({reconciliation_status:"matched",matched_transaction_id:t.id}).eq("id",b.id);if(e1){alert(e1.message);return;}const {error:e2}=await sb.from("transactions").update({bank_statement_transaction_id:b.id,updated_by:currentAuthUser.id}).eq("id",t.id);if(e2){alert(e2.message);return;}await loadFromSupabase();await loadRecon();}
 async function createTx(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id),type=b.transaction_type==="credit"?"income":"expense";const {data:t,error:e1}=await sb.from("transactions").insert({family_id:FAMILY_ID,transaction_date:b.transaction_date,description:b.memo||"Movimentação Itaú",type,category:catFor(b.memo,type),person:personFor(b.memo,type),status:"realizado",recurring:false,amount:Math.abs(b.amount),source:"bank_import",created_by:currentAuthUser.id,updated_by:currentAuthUser.id,bank_statement_transaction_id:b.id}).select().single();if(e1){alert(e1.message);return;}await sb.from("bank_statement_transactions").update({reconciliation_status:"matched",matched_transaction_id:t.id}).eq("id",b.id);await loadFromSupabase();await loadRecon();}
 async function ignoreTx(card){await sb.from("bank_statement_transactions").update({reconciliation_status:"ignored",matched_transaction_id:null}).eq("id",card.dataset.id);await loadRecon();}
@@ -806,7 +849,7 @@ if(togglePasswordBtn){
     const input=document.getElementById("loginPassword");
     const showing=input.type==="text";
     input.type=showing?"password":"text";
-    togglePasswordBtn.textContent=showing?"◉":"◎";
+    togglePasswordBtn.textContent="👁";
     togglePasswordBtn.setAttribute("aria-label",showing?"Mostrar senha":"Ocultar senha");
     togglePasswordBtn.title=showing?"Mostrar senha":"Ocultar senha";
     input.focus();
