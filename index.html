@@ -95,7 +95,7 @@
   .positive{color:#078b70}.negative{color:#dc2626}
   .notice{background:#fffbeb;border:1px solid #fde68a;color:#8a5a05;border-radius:14px;padding:12px 14px;font-size:12px;line-height:1.45;margin-bottom:14px}
   .empty{padding:35px;text-align:center;color:var(--muted)}
-  .quick-add{display:grid;grid-template-columns:110px 1.5fr 1fr 1fr 115px 125px auto;gap:8px;background:#fff;padding:12px;border-radius:16px;box-shadow:var(--shadow);margin-bottom:14px}
+  .quick-add{display:grid;grid-template-columns:110px 1.5fr 1fr 1fr 115px 125px 110px auto;gap:8px;background:#fff;padding:12px;border-radius:16px;box-shadow:var(--shadow);margin-bottom:14px}
   .quick-add input,.quick-add select{border:1px solid var(--line);border-radius:10px;padding:9px;min-width:0;outline:none}
   .quick-add input:focus,.quick-add select:focus{border-color:#b9b2ff}
   .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
@@ -345,6 +345,47 @@
 .pdf-review-note{background:#eef7ff;border:1px solid #cfe4ff;color:#365b7c;border-radius:10px;padding:10px;margin-top:10px;font-size:12px}
 .pdf-review-note strong{color:#183b59}
 
+
+.card-consolidated-row td{background:#fbfbff}
+.card-consolidated-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;background:#eeeafd;color:#5a4bc4;font-size:10px;font-weight:800;margin-top:4px}
+.card-detail-row td{background:#f8f9fd;padding:0!important}
+.card-detail-box{padding:14px 16px}
+.card-detail-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.card-detail-summary span{font-size:11px;color:#6f7b8f}
+.card-detail-summary strong{color:#172033}
+.card-detail-table{width:100%;border-collapse:collapse;font-size:11px}
+.card-detail-table th,.card-detail-table td{padding:7px 8px;border-bottom:1px solid #e9edf4;text-align:left;background:transparent}
+.card-detail-table th{color:#6f7b8f;font-weight:800}
+
+
+.quick-recurring{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:8px 10px;font-size:12px;font-weight:700;color:#59667b;
+  white-space:nowrap
+}
+.quick-recurring input{width:auto;margin:0}
+.recurrence-modal{
+  position:fixed;inset:0;background:rgba(20,25,45,.38);z-index:10050;
+  display:none;align-items:center;justify-content:center;padding:20px
+}
+.recurrence-modal.show{display:flex}
+.recurrence-card{
+  width:min(520px,100%);background:#fff;border-radius:20px;padding:20px;
+  box-shadow:0 30px 70px rgba(0,0,0,.22)
+}
+.recurrence-card h3{margin:0 0 7px;font-size:18px}
+.recurrence-card p{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.45}
+.recurrence-options{display:grid;gap:9px}
+.recurrence-options button{
+  width:100%;text-align:left;border:1px solid var(--line);background:#fff;
+  border-radius:12px;padding:11px 12px;cursor:pointer
+}
+.recurrence-options button:hover{border-color:#b9b2ff;background:#faf9ff}
+.recurrence-options strong{display:block;font-size:13px;color:var(--ink)}
+.recurrence-options small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+.recurrence-cancel{margin-top:10px;width:100%}
+
 </style>
 </head>
 <body>
@@ -462,6 +503,7 @@
         <select id="qCategory"></select>
         <select id="qPerson"><option>Família</option><option>Marcelo</option><option>Dayse</option></select>
         <input id="qValue" type="number" step="0.01" placeholder="Valor">
+        <label class="quick-recurring"><input id="qRecurring" type="checkbox"> Recorrente</label>
         <button class="btn btn-primary" id="qAdd">Adicionar</button>
       </div>
 
@@ -553,9 +595,32 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 10</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 12</div>
   </main>
 </div>
+
+<div id="recurrenceModal" class="recurrence-modal" aria-hidden="true">
+  <div class="recurrence-card">
+    <h3>Alterar lançamento recorrente</h3>
+    <p id="recurrenceModalText">Onde deseja aplicar esta alteração?</p>
+    <div class="recurrence-options">
+      <button type="button" data-recur-scope="single">
+        <strong>Somente este mês</strong>
+        <small>Altera apenas o lançamento selecionado.</small>
+      </button>
+      <button type="button" data-recur-scope="future">
+        <strong>Este mês e os próximos</strong>
+        <small>Atualiza este lançamento e os próximos lançamentos previstos da mesma série.</small>
+      </button>
+      <button type="button" data-recur-scope="all">
+        <strong>Toda a série prevista</strong>
+        <small>Atualiza todos os lançamentos previstos da série. Lançamentos já realizados são preservados.</small>
+      </button>
+    </div>
+    <button type="button" id="recurrenceCancel" class="btn btn-light recurrence-cancel">Cancelar</button>
+  </div>
+</div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1126,6 +1191,66 @@ async function analyzeCardFile(){
   }
 }
 function cardAddMonths(dateStr,n){const [y,m]=dateStr.split('-').map(Number),d=new Date(y,m-1+n,1,12);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;}
+
+function cardForecastNameMatches(card,desc){
+  const c=cardNormalizeMerchant(card?.name||'');
+  const d=cardNormalizeMerchant(desc||'');
+  if(!c||!d)return false;
+  if(c===d||d.includes(c)||c.includes(d))return true;
+  if(/NUBANK/.test(c)&&/NUBANK/.test(d))return true;
+  if(/ITAU/.test(c)&&/ITAU/.test(d)&&/BLACK/.test(c)&&/BLACK/.test(d))return true;
+  return false;
+}
+async function ensureConsolidatedCardTransaction(statement,card,userId){
+  const {data:existing,error:ee}=await sb.from('transactions')
+    .select('*')
+    .eq('card_statement_id',statement.id)
+    .maybeSingle();
+  if(ee)throw ee;
+  if(existing)return existing;
+
+  const month=String(statement.competence||'').slice(0,7);
+  if(month){
+    const start=month+'-01';
+    const [y,m]=month.split('-').map(Number);
+    const d=new Date(Date.UTC(y,m,1));
+    const end=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-01`;
+    const {data:forecasts,error:fe}=await sb.from('transactions')
+      .select('id,description')
+      .eq('family_id',FAMILY_ID)
+      .eq('source','previsao')
+      .eq('category','Cartão')
+      .gte('transaction_date',start)
+      .lt('transaction_date',end);
+    if(fe)throw fe;
+    const removeIds=(forecasts||[]).filter(x=>cardForecastNameMatches(card,x.description)).map(x=>x.id);
+    if(removeIds.length){
+      const del=await sb.from('transactions').delete().in('id',removeIds);
+      if(del.error)throw del.error;
+    }
+  }
+
+  const person=/DAYSE/i.test(card?.holder_name||'')?'Dayse':/MARCELO/i.test(card?.holder_name||'')?'Marcelo':'Família';
+  const transactionDate=statement.due_date||statement.closing_date||statement.competence;
+  const {data,error}=await sb.from('transactions').insert({
+    family_id:FAMILY_ID,
+    transaction_date:transactionDate,
+    description:`Fatura ${card?.name||'Cartão'}`,
+    type:'expense',
+    category:'Cartão',
+    person,
+    status:'realizado',
+    recurring:false,
+    amount:Number(statement.total_amount||0),
+    source:'card_statement',
+    created_by:userId,
+    updated_by:userId,
+    card_statement_id:statement.id
+  }).select().single();
+  if(error)throw error;
+  return data;
+}
+
 async function confirmCardImport(){
   const d=cardImportDraft;
   if(!d)return;
@@ -1165,6 +1290,8 @@ async function confirmCardImport(){
       if(ins.error)throw ins.error;
       statement=ins.data;
     }
+
+    await ensureConsolidatedCardTransaction(statement,d.card,u.id);
 
     const ex=await sb.from('card_transactions')
       .select('source_ref')
@@ -1258,6 +1385,7 @@ async function confirmCardImport(){
     alert(`Importação concluída: ${rows.length} itens${matchedCount?`, ${matchedCount} parcela(s) prevista(s) conciliada(s)`:''}${fut.length?` e ${fut.length} novas parcelas futuras`:''}.`);
     resetCardImport();
     await loadCardStatements();
+    await loadFromSupabase();
   }catch(e){
     console.error(e);
     alert('Erro ao importar a fatura: '+(e.message||e));
@@ -1318,7 +1446,7 @@ function personFor(desc,type){
 function mkDate(y,m,day){ return `${y}-${String(m).padStart(2,"0")}-${String(Math.min(day,28)).padStart(2,"0")}`; }
 let uid=1;
 function tx(y,m,day,description,type,value,real=true,recurring=true,category=null,person=null){
-  return {id:uid++,date:mkDate(y,m,day||dueDay[description]||5),description,type,category:category||catFor(description,type),person:person||personFor(description,type),status:real?"realizado":"previsto",recurring,value:Number(value)||0,source:real?"planilha":"previsao"};
+  return {id:uid++,date:mkDate(y,m,day||dueDay[description]||5),description,type,category:category||catFor(description,type),person:person||personFor(description,type),status:real?"realizado":"previsto",recurring,recurrence_series_id:null,value:Number(value)||0,source:real?"planilha":"previsao"};
 }
 
 function seedData(){
@@ -1547,14 +1675,143 @@ function drawTrend(){
 }
 function inputCell(type,value,attrs=""){ return `<input ${type?`type="${type}"`:""} value="${String(value??"").replaceAll('"',"&quot;")}" ${attrs}>`; }
 
+
+let recurrenceScopeResolver=null;
+function recurrenceScopePrompt(item){
+  return new Promise(resolve=>{
+    const modal=document.getElementById("recurrenceModal");
+    const text=document.getElementById("recurrenceModalText");
+    if(!modal)return resolve("single");
+    recurrenceScopeResolver=resolve;
+    text.textContent=`"${item.description}" faz parte de uma série recorrente. Onde deseja aplicar a alteração?`;
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden","false");
+  });
+}
+function closeRecurrenceModal(scope=null){
+  const modal=document.getElementById("recurrenceModal");
+  if(modal){modal.classList.remove("show");modal.setAttribute("aria-hidden","true");}
+  const r=recurrenceScopeResolver; recurrenceScopeResolver=null;
+  if(r)r(scope);
+}
+document.querySelectorAll("[data-recur-scope]").forEach(b=>b.addEventListener("click",()=>closeRecurrenceModal(b.dataset.recurScope)));
+document.getElementById("recurrenceCancel")?.addEventListener("click",()=>closeRecurrenceModal(null));
+document.getElementById("recurrenceModal")?.addEventListener("click",e=>{if(e.target.id==="recurrenceModal")closeRecurrenceModal(null);});
+
+function dateWithDayForMonth(targetDate,sourceDate){
+  const [ty,tm]=String(targetDate).slice(0,7).split("-").map(Number);
+  const day=Number(String(sourceDate).slice(8,10))||5;
+  const last=new Date(ty,tm,0).getDate();
+  return `${ty}-${String(tm).padStart(2,"0")}-${String(Math.min(day,last)).padStart(2,"0")}`;
+}
+function applyRecurringField(target,field,value,sourceItem){
+  if(field==="date")target.date=dateWithDayForMonth(target.date,value);
+  else target[field]=value;
+  if(field==="recurring" && value===false && target!==sourceItem){
+    target.recurrence_series_id=null;
+  }
+}
+async function handleRecurringEdit(item,field,newValue,oldValue){
+  const wasRecurring=!!item.recurring;
+  const isTurningOn=field==="recurring" && newValue===true;
+  if(isTurningOn && !item.recurrence_series_id)item.recurrence_series_id=crypto.randomUUID();
+
+  const participates=wasRecurring||isTurningOn||!!item.recurrence_series_id;
+  if(!participates){
+    item[field]=newValue;
+    return true;
+  }
+
+  const before={...item,[field]:oldValue};
+  const scope=await recurrenceScopePrompt(before);
+  if(!scope)return false;
+
+  if(!item.recurrence_series_id)item.recurrence_series_id=crypto.randomUUID();
+  const seriesId=item.recurrence_series_id;
+  item[field]=newValue;
+
+  if(scope==="single")return true;
+
+  const currentDate=item.date;
+  const currentYm=String(currentDate).slice(0,7);
+  for(const t of state.transactions){
+    if(t===item)continue;
+    if(t.recurrence_series_id!==seriesId)continue;
+    if(t.status==="realizado")continue;
+    const ym=String(t.date||"").slice(0,7);
+    if(scope==="future" && ym<currentYm)continue;
+    applyRecurringField(t,field,newValue,item);
+  }
+  return true;
+}
+function quickAddRecurringSeries(base,months=12){
+  const seriesId=crypto.randomUUID();
+  const rows=[];
+  for(let i=0;i<months;i++){
+    const ym=addMonths(base.date.slice(0,7),i);
+    const date=dateWithDayForMonth(ym+"-01",base.date);
+    rows.push({
+      ...base,
+      id:"tmp-"+Date.now()+"-"+i+"-"+Math.random(),
+      date,
+      recurring:true,
+      recurrence_series_id:seriesId,
+      status:i===0?base.status:"previsto",
+      source:i===0?base.source:"previsao"
+    });
+  }
+  return rows;
+}
+function handleQuickAdd(){
+  const date=document.getElementById("qDate").value||`${state.selected}-05`;
+  const type=document.getElementById("qType").value;
+  const recurring=!!document.getElementById("qRecurring")?.checked;
+  const base={
+    date,
+    description:document.getElementById("qDesc").value||"Novo lançamento",
+    type,
+    category:document.getElementById("qCategory").value,
+    person:document.getElementById("qPerson").value,
+    status:state.selected<="2026-07"?"realizado":"previsto",
+    recurring,
+    recurrence_series_id:null,
+    value:Number(document.getElementById("qValue").value||0),
+    source:"manual"
+  };
+  if(recurring)state.transactions.push(...quickAddRecurringSeries(base,12));
+  else state.transactions.push({id:"tmp-"+Date.now()+"-"+Math.random(),...base});
+  document.getElementById("qDesc").value="";
+  document.getElementById("qValue").value="";
+  if(document.getElementById("qRecurring"))document.getElementById("qRecurring").checked=false;
+  save();refreshAll();
+}
+
 function renderTransactions(){
   const q=(document.getElementById("searchFilter").value||"").toLowerCase();
   const tf=document.getElementById("typeFilter").value,pf=document.getElementById("personFilter").value,cf=document.getElementById("categoryFilter").value;
   const arr=currentMonthTx().filter(t=>(!q||t.description.toLowerCase().includes(q))&&(!tf||t.type===tf)&&(!pf||t.person===pf)&&(!cf||t.category===cf))
     .sort((a,b)=>a.date.localeCompare(b.date)||a.description.localeCompare(b.description));
   const body=document.getElementById("txBody");
-  body.innerHTML=arr.length?arr.map(t=>`
-    <tr data-id="${t.id}">
+
+  body.innerHTML=arr.length?arr.map(t=>{
+    const consolidated=!!t.card_statement_id;
+    if(consolidated){
+      return `<tr data-id="${t.id}" class="card-consolidated-row">
+        <td>${brd(t.date)}</td>
+        <td><strong>${esc(t.description)}</strong><div class="card-consolidated-tag">💳 Fatura consolidada</div></td>
+        <td>Despesa</td>
+        <td>Cartão</td>
+        <td>${esc(t.person)}</td>
+        <td>${t.status==="realizado"?"Realizado":"Previsto"}</td>
+        <td style="text-align:center">—</td>
+        <td><strong>${fmtBRL.format(t.value)}</strong></td>
+        <td><div class="row-actions"><button class="icon-btn card-expand" title="Ver itens da fatura">⌄</button></div></td>
+      </tr>
+      <tr class="card-detail-row" data-detail-for="${t.id}" style="display:none">
+        <td colspan="9"><div class="card-detail-box">Carregando itens...</div></td>
+      </tr>`;
+    }
+    return `<tr data-id="${t.id}">
       <td>${inputCell("date",t.date,'data-field="date"')}</td>
       <td>${inputCell("text",t.description,'data-field="description"')}</td>
       <td><select data-field="type"><option value="expense" ${t.type==="expense"?"selected":""}>Despesa</option><option value="income" ${t.type==="income"?"selected":""}>Receita</option><option value="adjustment" ${t.type==="adjustment"?"selected":""}>Saldo/Ajuste</option></select></td>
@@ -1564,17 +1821,68 @@ function renderTransactions(){
       <td style="text-align:center"><input data-field="recurring" type="checkbox" ${t.recurring?"checked":""} style="width:auto"></td>
       <td>${inputCell("number",t.value,'data-field="value" step="0.01" class="money"')}</td>
       <td><div class="row-actions"><button class="icon-btn duplicate" title="Duplicar">⧉</button><button class="icon-btn delete" title="Excluir">×</button></div></td>
-    </tr>`).join(""):'<tr><td colspan="9"><div class="empty">Nenhum lançamento encontrado.</div></td></tr>';
+    </tr>`;
+  }).join(""):'<tr><td colspan="9"><div class="empty">Nenhum lançamento encontrado.</div></td></tr>';
+
   body.querySelectorAll("[data-field]").forEach(el=>{
-    el.addEventListener("change",e=>{
+    el.addEventListener("change",async e=>{
       const tr=e.target.closest("tr"), item=state.transactions.find(x=>x.id==tr.dataset.id); if(!item)return;
-      const f=e.target.dataset.field; item[f]=f==="recurring"?e.target.checked:f==="value"?Number(e.target.value||0):e.target.value;
+      const f=e.target.dataset.field;
+      const oldValue=item[f];
+      const newValue=f==="recurring"?e.target.checked:f==="value"?Number(e.target.value||0):e.target.value;
+      const ok=await handleRecurringEdit(item,f,newValue,oldValue);
+      if(!ok){renderTransactions();return;}
       save(); refreshAll();
     });
   });
   body.querySelectorAll(".delete").forEach(b=>b.onclick=e=>{const id=e.target.closest("tr").dataset.id;state.transactions=state.transactions.filter(x=>String(x.id)!==String(id));save();refreshAll();});
   body.querySelectorAll(".duplicate").forEach(b=>b.onclick=e=>{const id=e.target.closest("tr").dataset.id,x=state.transactions.find(t=>String(t.id)===String(id));if(x){state.transactions.push({...x,id:uid++,description:x.description+" (cópia)"});save();refreshAll();}});
+  body.querySelectorAll(".card-expand").forEach(b=>b.onclick=async e=>{
+    const tr=e.target.closest("tr");
+    const item=state.transactions.find(x=>String(x.id)===String(tr.dataset.id));
+    if(item)await toggleCardTransactionDetails(item);
+  });
+
   const st=monthlyStats(state.selected); document.getElementById("sumIncome").textContent=fmtBRL.format(st.income);document.getElementById("sumExpense").textContent=fmtBRL.format(st.expense);document.getElementById("sumBalance").textContent=fmtBRL.format(st.balance);
+}
+async function toggleCardTransactionDetails(t){
+  const row=document.querySelector(`tr[data-detail-for="${t.id}"]`);
+  if(!row)return;
+  const opening=row.style.display==="none";
+  row.style.display=opening?"table-row":"none";
+  if(!opening||row.dataset.loaded==="1")return;
+
+  const box=row.querySelector(".card-detail-box");
+  try{
+    const {data:items,error}=await sb.from("card_transactions")
+      .select("transaction_date,description,amount,entry_type,card_last4,installment_number,installment_total")
+      .eq("statement_id",t.card_statement_id)
+      .order("transaction_date",{ascending:true});
+    if(error)throw error;
+    const rows=items||[];
+    const deb=rows.filter(x=>x.entry_type!=="credit").reduce((a,x)=>a+Number(x.amount||0),0);
+    const cred=rows.filter(x=>x.entry_type==="credit").reduce((a,x)=>a+Number(x.amount||0),0);
+
+    box.innerHTML=`<div class="card-detail-summary">
+      <span>Itens: <strong>${rows.length}</strong></span>
+      <span>Compras: <strong>${fmtBRL.format(deb)}</strong></span>
+      <span>Créditos/estornos: <strong>${fmtBRL.format(cred)}</strong></span>
+      <span>Total consolidado: <strong>${fmtBRL.format(t.value)}</strong></span>
+    </div>
+    <div style="overflow:auto"><table class="card-detail-table"><thead><tr><th>Data</th><th>Descrição</th><th>Final</th><th>Parcela</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>
+      ${rows.map(x=>`<tr>
+        <td>${brd(x.transaction_date)}</td>
+        <td>${esc(x.description)}</td>
+        <td>${x.card_last4?esc(x.card_last4):"—"}</td>
+        <td>${x.installment_number&&x.installment_total?`${x.installment_number}/${x.installment_total}`:"—"}</td>
+        <td>${x.entry_type==="credit"?"Crédito/estorno":"Compra"}</td>
+        <td>${x.entry_type==="credit"?"+ ":""}${fmtBRL.format(Number(x.amount||0))}</td>
+      </tr>`).join("")}
+    </tbody></table></div>`;
+    row.dataset.loaded="1";
+  }catch(err){
+    box.innerHTML=`<div class="empty">Erro ao carregar itens: ${esc(err.message||String(err))}</div>`;
+  }
 }
 function forecastStats(startYM,count=6){
   let carry=0;
@@ -1627,12 +1935,7 @@ document.getElementById("addExpense").onclick=()=>addBlank("expense");
 document.getElementById("addIncome").onclick=()=>addBlank("income");
 document.getElementById("generateForecast").onclick=()=>{ensureForecast(8,true);alert("Previsão atualizada para os próximos meses.");refreshAll();showSection("forecast");};
 ["searchFilter","typeFilter","personFilter","categoryFilter"].forEach(id=>document.getElementById(id).addEventListener("input",renderTransactions));
-document.getElementById("qAdd").onclick=()=>{
-  const date=document.getElementById("qDate").value||`${state.selected}-05`;
-  const type=document.getElementById("qType").value;
-  state.transactions.push({id:uid++,date,description:document.getElementById("qDesc").value||"Novo lançamento",type,category:document.getElementById("qCategory").value,person:document.getElementById("qPerson").value,status:state.selected<="2026-07"?"realizado":"previsto",recurring:false,value:Number(document.getElementById("qValue").value||0),source:"manual"});
-  document.getElementById("qDesc").value="";document.getElementById("qValue").value="";save();refreshAll();
-};
+document.getElementById("qAdd").onclick=handleQuickAdd;
 // ===== Supabase online adapter =====
 const SUPABASE_URL = "https://xdpiujcmjxbmbknozlwx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QjlWotF65xtWZfwVMTnnfQ_C5YF74ah";
@@ -1649,15 +1952,15 @@ let syncTimer = null;
 let onlineReady = false;
 
 function dbToLocal(r){
-  return {id:r.id,date:r.transaction_date,description:r.description,type:r.type,category:r.category,person:r.person,status:r.status,recurring:!!r.recurring,value:Number(r.amount||0),source:r.source||"manual",bank_statement_transaction_id:r.bank_statement_transaction_id||null,_updated_at:r.updated_at,_updated_by:r.updated_by};
+  return {id:r.id,date:r.transaction_date,description:r.description,type:r.type,category:r.category,person:r.person,status:r.status,recurring:!!r.recurring,recurrence_series_id:r.recurrence_series_id||null,value:Number(r.amount||0),source:r.source||"manual",bank_statement_transaction_id:r.bank_statement_transaction_id||null,card_statement_id:r.card_statement_id||null,_updated_at:r.updated_at,_updated_by:r.updated_by};
 }
 function localToDb(t, includeId=false){
-  const row={family_id:FAMILY_ID,transaction_date:t.date,description:t.description,type:t.type,category:t.category||"Outros",person:t.person||"Família",status:t.status||"realizado",recurring:!!t.recurring,amount:Number(t.value||0),source:t.source||"manual",bank_statement_transaction_id:t.bank_statement_transaction_id||null,updated_by:currentAuthUser?.id||null};
+  const row={family_id:FAMILY_ID,transaction_date:t.date,description:t.description,type:t.type,category:t.category||"Outros",person:t.person||"Família",status:t.status||"realizado",recurring:!!t.recurring,recurrence_series_id:t.recurrence_series_id||null,amount:Number(t.value||0),source:t.source||"manual",bank_statement_transaction_id:t.bank_statement_transaction_id||null,card_statement_id:t.card_statement_id||null,updated_by:currentAuthUser?.id||null};
   if(includeId && isUuid(t.id)) row.id=t.id;
   return row;
 }
 function isUuid(v){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||""));}
-function comparable(t){return JSON.stringify({date:t.date,description:t.description,type:t.type,category:t.category,person:t.person,status:t.status,recurring:!!t.recurring,value:Number(t.value||0),source:t.source||"manual"});}
+function comparable(t){return JSON.stringify({date:t.date,description:t.description,type:t.type,category:t.category,person:t.person,status:t.status,recurring:!!t.recurring,recurrence_series_id:t.recurrence_series_id||null,value:Number(t.value||0),source:t.source||"manual",card_statement_id:t.card_statement_id||null});}
 function setOnlineStatus(text,kind="saved"){
   const el=document.getElementById("saveState"); if(!el)return; el.className="save-state "+kind; el.textContent="● "+text;
 }
@@ -1810,11 +2113,7 @@ document.getElementById("addExpense").onclick=()=>addBlank("expense");
 document.getElementById("addIncome").onclick=()=>addBlank("income");
 document.getElementById("generateForecast").onclick=()=>{ensureForecast(8,true);refreshAll();showSection("forecast");};
 ["searchFilter","typeFilter","personFilter","categoryFilter"].forEach(id=>document.getElementById(id).addEventListener("input",renderTransactions));
-document.getElementById("qAdd").onclick=()=>{
-  const date=document.getElementById("qDate").value||`${state.selected}-05`,type=document.getElementById("qType").value;
-  state.transactions.push({id:"tmp-"+Date.now()+"-"+Math.random(),date,description:document.getElementById("qDesc").value||"Novo lançamento",type,category:document.getElementById("qCategory").value,person:document.getElementById("qPerson").value,status:state.selected<="2026-07"?"realizado":"previsto",recurring:false,value:Number(document.getElementById("qValue").value||0),source:"manual"});
-  document.getElementById("qDesc").value="";document.getElementById("qValue").value="";save();refreshAll();
-};
+document.getElementById("qAdd").onclick=handleQuickAdd;
 document.getElementById("exportBackup").onclick=()=>{
   const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),transactions:state.transactions},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`casa-em-dia-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
