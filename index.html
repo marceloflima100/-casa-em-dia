@@ -647,7 +647,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 19</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 20</div>
   </main>
 </div>
 
@@ -1902,7 +1902,30 @@ function applyRecurringField(target,field,value,sourceItem){
 async function handleRecurringEdit(item,field,newValue,oldValue){
   const wasRecurring=!!item.recurring;
   const isTurningOn=field==="recurring" && newValue===true;
-  if(isTurningOn && !item.recurrence_series_id)item.recurrence_series_id=crypto.randomUUID();
+  if(isTurningOn && !item.recurrence_series_id){
+    item.recurrence_series_id=crypto.randomUUID();
+
+    // Ao transformar um lançamento isolado (inclusive uma cópia) em recorrente,
+    // cria também os próximos 11 meses como previstos.
+    const existingSameSeries=state.transactions.some(t=>t!==item && t.recurrence_series_id===item.recurrence_series_id);
+    if(!existingSameSeries){
+      const baseYm=String(item.date||"").slice(0,7);
+      for(let i=1;i<12;i++){
+        const ym=addMonths(baseYm,i);
+        state.transactions.push({
+          ...item,
+          id:"tmp-"+Date.now()+"-"+i+"-"+Math.random(),
+          date:dateWithDayForMonth(ym+"-01",item.date),
+          status:"previsto",
+          recurring:true,
+          recurrence_series_id:item.recurrence_series_id,
+          source:"previsao",
+          bank_statement_transaction_id:null,
+          card_statement_id:null
+        });
+      }
+    }
+  }
 
   const participates=wasRecurring||isTurningOn||!!item.recurrence_series_id;
   if(!participates){
@@ -2090,7 +2113,26 @@ function renderTransactions(){
     const ok=await handleRecurringDelete(item);
     if(ok){save();refreshAll();}
   });
-  body.querySelectorAll(".duplicate").forEach(b=>b.onclick=e=>{const id=e.target.closest("tr").dataset.id,x=state.transactions.find(t=>String(t.id)===String(id));if(x){state.transactions.push({...x,id:uid++,description:x.description+" (cópia)"});save();refreshAll();}});
+  body.querySelectorAll(".duplicate").forEach(b=>b.onclick=e=>{
+    const id=e.target.closest("tr").dataset.id;
+    const x=state.transactions.find(t=>String(t.id)===String(id));
+    if(!x)return;
+
+    // A cópia nasce como lançamento independente.
+    // Não herda a série recorrente do lançamento original.
+    state.transactions.push({
+      ...x,
+      id:"tmp-"+Date.now()+"-"+Math.random(),
+      description:x.description+" (cópia)",
+      recurring:false,
+      recurrence_series_id:null,
+      bank_statement_transaction_id:null,
+      card_statement_id:null,
+      source:"manual"
+    });
+    save();
+    refreshAll();
+  });
   body.querySelectorAll(".card-expand").forEach(b=>b.onclick=async e=>{
     const tr=e.target.closest("tr");
     const item=state.transactions.find(x=>String(x.id)===String(tr.dataset.id));
