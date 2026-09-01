@@ -477,10 +477,10 @@
 
     <section id="dashboard" class="section active">
       <div class="grid-kpi">
-        <div class="kpi income"><div class="icon">↑</div><div class="label">Receita Total</div><div class="value" id="kIncome">R$ 0</div><div class="hint" id="kIncomeHint"></div></div>
-        <div class="kpi expense"><div class="icon">↓</div><div class="label">Despesas Totais</div><div class="value" id="kExpense">R$ 0</div><div class="hint" id="kExpenseHint"></div></div>
-        <div class="kpi balance"><div class="icon">~</div><div class="label">Saldo Atual</div><div class="value" id="kBalance">R$ 0</div><div class="hint" id="kBalanceHint"></div></div>
-        <div class="kpi future"><div class="icon">◷</div><div class="label">Saldo Projetado</div><div class="value" id="kFuture">R$ 0</div><div class="hint">Fim do mês selecionado</div></div>
+        <div class="kpi income"><div class="icon">↑</div><div class="label">Receita Total</div><div class="value" id="kIncome">R$ 0,00</div><div class="hint" id="kIncomeHint"></div></div>
+        <div class="kpi expense"><div class="icon">↓</div><div class="label">Despesas Totais</div><div class="value" id="kExpense">R$ 0,00</div><div class="hint" id="kExpenseHint"></div></div>
+        <div class="kpi balance"><div class="icon">~</div><div class="label">Saldo Atual</div><div class="value" id="kBalance">R$ 0,00</div><div class="hint" id="kBalanceHint"></div></div>
+        <div class="kpi future"><div class="icon">◷</div><div class="label">Saldo Projetado</div><div class="value" id="kFuture">R$ 0,00</div><div class="hint">Fim do mês selecionado</div></div>
       </div>
 
       <div class="panel-grid">
@@ -606,7 +606,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 20</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 21</div>
   </main>
 </div>
 
@@ -666,10 +666,8 @@ function parseCardOFX(text){const x=String(text||'').replace(/\r/g,'');const sta
 async function loadCreditCards(){
   const g=document.getElementById('creditCardsGrid');
   const sel=document.getElementById('cardImportCard');
-  const retry=document.getElementById('reloadCreditCardsBtn');
   if(!g||!sel)return;
 
-  if(retry)retry.style.display='none';
   g.innerHTML='<div class="bank-empty">Carregando cartões do Supabase...</div>';
 
   try{
@@ -688,7 +686,6 @@ async function loadCreditCards(){
     if(!creditCards.length){
       g.innerHTML='<div class="bank-empty">Nenhum cartão ativo encontrado no Supabase.</div>';
       sel.innerHTML='<option value="">Nenhum cartão cadastrado</option>';
-      if(retry)retry.style.display='inline-flex';
       return;
     }
 
@@ -709,7 +706,6 @@ async function loadCreditCards(){
     const msg=e?.message||String(e);
     g.innerHTML=`<div class="bank-empty" style="color:#b42318">Erro ao carregar cartões: ${esc(msg)}</div>`;
     sel.innerHTML='<option value="">Erro ao carregar cartões</option>';
-    if(retry)retry.style.display='inline-flex';
   }
 }
 
@@ -1447,7 +1443,6 @@ async function confirmCardImport(){
   }
 }
 document.getElementById('cardAnalyzeBtn')?.addEventListener('click',analyzeCardFile);document.getElementById('cardCancelImportBtn')?.addEventListener('click',resetCardImport);document.getElementById('cardConfirmImportBtn')?.addEventListener('click',confirmCardImport);
-document.getElementById('reloadCreditCardsBtn')?.addEventListener('click',loadCreditCards);
 </script>
 <script id="embeddedData" type="application/json">{"state":null,"meta":{"lastUpdated":null,"updatedBy":null,"revision":0}}</script>
 <script>
@@ -2146,10 +2141,26 @@ function drawForecast(arr){
 }
 function refreshAll(){fillMonthSelect();updateDashboard();renderTransactions();renderForecast();}
 function addBlank(type){
-  const [y,m]=state.selected.split("-").map(Number);
-  state.transactions.push(tx(y,m,5,type==="income"?"Nova receita":"Nova despesa",type,0,type!=="expense" && state.selected<="2026-07",false,type==="income"?"Renda":"Outros",type==="income"?"Marcelo":"Família"));
-  state.transactions[state.transactions.length-1].status=state.selected<="2026-07"?"realizado":"previsto";
-  save(); showSection("transactions"); refreshAll();
+  // Abre a inclusão rápida sem gravar um lançamento incompleto.
+  // O lançamento só será criado por handleQuickAdd(), que exige descrição e valor > 0.
+  showSection("transactions");
+  const qDate=document.getElementById("qDate");
+  const qDesc=document.getElementById("qDesc");
+  const qType=document.getElementById("qType");
+  const qCategory=document.getElementById("qCategory");
+  const qPerson=document.getElementById("qPerson");
+  const qValue=document.getElementById("qValue");
+  const qRecurring=document.getElementById("qRecurring");
+
+  if(qDate)qDate.value=`${state.selected}-05`;
+  if(qDesc)qDesc.value="";
+  if(qType)qType.value=type;
+  if(qCategory)qCategory.value=type==="income"?"Renda":"Outros";
+  if(qPerson)qPerson.value=type==="income"?"Marcelo":"Família";
+  if(qValue)qValue.value="";
+  if(qRecurring)qRecurring.checked=false;
+
+  setTimeout(()=>qDesc?.focus(),30);
 }
 function showSection(id){
   document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===id));
