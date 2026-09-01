@@ -576,9 +576,10 @@
           </table>
         </div>
         <div class="summary-row">
-          <span>Receitas: <b id="sumIncome">R$ 0</b></span>
-          <span>Despesas: <b id="sumExpense">R$ 0</b></span>
-          <span>Saldo: <b id="sumBalance">R$ 0</b></span>
+          <span>Receitas: <b id="sumIncome">R$ 0,00</b></span>
+          <span>Despesas: <b id="sumExpense">R$ 0,00</b></span>
+          <span>Saldo: <b id="sumBalance">R$ 0,00</b></span>
+          <span>Filtrados: <b id="sumFiltered">R$ 0,00</b></span>
         </div>
       </div>
     </section>
@@ -636,7 +637,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 15</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 18</div>
   </main>
 </div>
 
@@ -1751,6 +1752,84 @@ function recurrenceScopePrompt(item){
     modal.setAttribute("aria-hidden","false");
   });
 }
+function recurrenceDeleteScopePrompt(item){
+  return new Promise(resolve=>{
+    const modal=document.getElementById("recurrenceModal");
+    const text=document.getElementById("recurrenceModalText");
+    if(!modal)return resolve("single");
+    recurrenceScopeResolver=resolve;
+    text.textContent=`"${item.description}" faz parte de uma série recorrente. Quais lançamentos deseja apagar?`;
+
+    const labels={
+      single:["Somente este mês","Apaga apenas o lançamento selecionado."],
+      future:["Este mês e os próximos","Apaga este lançamento e os próximos lançamentos previstos da mesma série."],
+      all:["Toda a série prevista","Apaga todos os lançamentos previstos da série. Os já realizados são preservados."]
+    };
+    modal.querySelectorAll("[data-recur-scope]").forEach(btn=>{
+      const [title,sub]=labels[btn.dataset.recurScope]||["",""];
+      const strong=btn.querySelector("strong"),small=btn.querySelector("small");
+      if(strong)strong.textContent=title;
+      if(small)small.textContent=sub;
+    });
+
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden","false");
+  }).finally(()=>{
+    const modal=document.getElementById("recurrenceModal");
+    const labels={
+      single:["Somente este mês","Altera apenas o lançamento selecionado."],
+      future:["Este mês e os próximos","Atualiza este lançamento e os próximos lançamentos previstos da mesma série."],
+      all:["Toda a série prevista","Atualiza todos os lançamentos previstos da série. Lançamentos já realizados são preservados."]
+    };
+    modal?.querySelectorAll("[data-recur-scope]").forEach(btn=>{
+      const [title,sub]=labels[btn.dataset.recurScope]||["",""];
+      const strong=btn.querySelector("strong"),small=btn.querySelector("small");
+      if(strong)strong.textContent=title;
+      if(small)small.textContent=sub;
+    });
+  });
+}
+async function handleRecurringDelete(item){
+  if(!item)return false;
+
+  if(!item.recurring && !item.recurrence_series_id){
+    state.transactions=state.transactions.filter(x=>String(x.id)!==String(item.id));
+    return true;
+  }
+
+  const scope=await recurrenceDeleteScopePrompt(item);
+  if(!scope)return false;
+
+  const seriesId=item.recurrence_series_id;
+  const currentYm=String(item.date||"").slice(0,7);
+
+  if(scope==="single" || !seriesId){
+    state.transactions=state.transactions.filter(x=>String(x.id)!==String(item.id));
+    return true;
+  }
+
+  state.transactions=state.transactions.filter(t=>{
+    if(t.recurrence_series_id!==seriesId)return true;
+
+    // Always preserve already-realized items except the selected row when user chose "single".
+    if(t.status==="realizado")return true;
+
+    if(scope==="future"){
+      const ym=String(t.date||"").slice(0,7);
+      return ym<currentYm;
+    }
+
+    if(scope==="all")return false;
+    return true;
+  });
+
+  // If selected item is itself still present because it was realized, remove it explicitly
+  // for "future" so the user's chosen row is always deleted.
+  if(scope==="future"){
+    state.transactions=state.transactions.filter(x=>String(x.id)!==String(item.id));
+  }
+  return true;
+}
 function closeRecurrenceModal(scope=null){
   const modal=document.getElementById("recurrenceModal");
   if(modal){modal.classList.remove("show");modal.setAttribute("aria-hidden","true");}
@@ -1829,16 +1908,31 @@ function handleQuickAdd(){
   const date=document.getElementById("qDate").value||`${state.selected}-05`;
   const type=document.getElementById("qType").value;
   const recurring=!!document.getElementById("qRecurring")?.checked;
+  const description=(document.getElementById("qDesc").value||"").trim();
+  const rawValue=document.getElementById("qValue").value;
+  const value=Number(rawValue);
+
+  if(!description){
+    alert("Informe a descrição do lançamento.");
+    document.getElementById("qDesc").focus();
+    return;
+  }
+  if(rawValue==="" || !Number.isFinite(value) || value<=0){
+    alert("Informe um valor maior que zero.");
+    document.getElementById("qValue").focus();
+    return;
+  }
+
   const base={
     date,
-    description:document.getElementById("qDesc").value||"Novo lançamento",
+    description,
     type,
     category:document.getElementById("qCategory").value,
     person:document.getElementById("qPerson").value,
     status:state.selected<="2026-07"?"realizado":"previsto",
     recurring,
     recurrence_series_id:null,
-    value:Number(document.getElementById("qValue").value||0),
+    value,
     source:"manual"
   };
   if(recurring)state.transactions.push(...quickAddRecurringSeries(base,12));
@@ -1873,6 +1967,17 @@ function renderTransactions(){
     .filter(t=>(!q||t.description.toLowerCase().includes(q))&&(!tf||t.type===tf)&&(!pf||t.person===pf)&&(!cf||t.category===cf))
     .sort(compareTx);
   const body=document.getElementById("txBody");
+  const filteredTotal=arr.reduce((sum,t)=>{
+    const v=Number(t.value||0);
+    if(t.type==="income")return sum+v;
+    if(t.type==="expense")return sum-v;
+    return sum+v;
+  },0);
+  const filteredEl=document.getElementById("sumFiltered");
+  if(filteredEl){
+    filteredEl.textContent=fmtBRL.format(filteredTotal);
+    filteredEl.className=filteredTotal<0?"negative":filteredTotal>0?"positive":"";
+  }
 
   body.innerHTML=arr.length?arr.map(t=>{
     const consolidated=!!t.card_statement_id;
@@ -1910,13 +2015,35 @@ function renderTransactions(){
       const tr=e.target.closest("tr"), item=state.transactions.find(x=>x.id==tr.dataset.id); if(!item)return;
       const f=e.target.dataset.field;
       const oldValue=item[f];
-      const newValue=f==="recurring"?e.target.checked:f==="value"?Number(e.target.value||0):e.target.value;
+      let newValue=f==="recurring"?e.target.checked:f==="value"?Number(e.target.value):e.target.value;
+
+      if(f==="description"){
+        newValue=String(newValue||"").trim();
+        if(!newValue){
+          alert("A descrição não pode ficar em branco.");
+          renderTransactions();
+          return;
+        }
+      }
+      if(f==="value"){
+        if(e.target.value==="" || !Number.isFinite(newValue) || newValue<=0){
+          alert("O valor deve ser maior que zero.");
+          renderTransactions();
+          return;
+        }
+      }
+
       const ok=await handleRecurringEdit(item,f,newValue,oldValue);
       if(!ok){renderTransactions();return;}
       save(); refreshAll();
     });
   });
-  body.querySelectorAll(".delete").forEach(b=>b.onclick=e=>{const id=e.target.closest("tr").dataset.id;state.transactions=state.transactions.filter(x=>String(x.id)!==String(id));save();refreshAll();});
+  body.querySelectorAll(".delete").forEach(b=>b.onclick=async e=>{
+    const id=e.target.closest("tr").dataset.id;
+    const item=state.transactions.find(x=>String(x.id)===String(id));
+    const ok=await handleRecurringDelete(item);
+    if(ok){save();refreshAll();}
+  });
   body.querySelectorAll(".duplicate").forEach(b=>b.onclick=e=>{const id=e.target.closest("tr").dataset.id,x=state.transactions.find(t=>String(t.id)===String(id));if(x){state.transactions.push({...x,id:uid++,description:x.description+" (cópia)"});save();refreshAll();}});
   body.querySelectorAll(".card-expand").forEach(b=>b.onclick=async e=>{
     const tr=e.target.closest("tr");
