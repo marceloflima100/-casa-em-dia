@@ -417,6 +417,16 @@
   .filters{grid-template-columns:1fr}
 }
 
+
+.projected-month-group{border:1px solid #e6e9f1;border-radius:12px;overflow:hidden;margin-top:10px;background:#fff}
+.projected-month-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f6f7fb;border-bottom:1px solid #e6e9f1}
+.projected-month-head strong{font-size:13px;color:#273247}
+.projected-month-total{font-weight:800;color:#4d56c7;white-space:nowrap}
+.projected-month-items .projected-row{padding:9px 12px;border-bottom:1px solid #eef0f5}
+.projected-month-items .projected-row:last-child{border-bottom:0}
+.projected-description{display:flex;flex-direction:column;gap:2px}
+.projected-description small{color:#7c8799;font-size:10px}
+
 </style>
 </head>
 <body>
@@ -637,7 +647,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 18</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 19</div>
   </main>
 </div>
 
@@ -897,10 +907,46 @@ async function toggleStatement(statementId){
       ${projected.length?`
         <div class="statement-section-title">Parcelas futuras previstas</div>
         <div class="projected-list">
-          ${projected.map(p=>`<div class="projected-row">
-            <span>${monthLabel(p.competence)} • ${p.installment_number}/${p.installment_total}</span>
-            <strong>${fmtBRL.format(Number(p.amount||0))}</strong>
-          </div>`).join('')}
+          ${(()=>{
+            const txByGroup=new Map(txs.filter(t=>t.purchase_group_id).map(t=>[t.purchase_group_id,t]));
+            const byMonth=new Map();
+            for(const p of projected){
+              const key=String(p.competence||'').slice(0,7);
+              if(!byMonth.has(key))byMonth.set(key,[]);
+              byMonth.get(key).push(p);
+            }
+            return [...byMonth.entries()]
+              .sort((a,b)=>a[0].localeCompare(b[0]))
+              .map(([ym,items])=>{
+                const total=items.reduce((sum,p)=>sum+Number(p.amount||0),0);
+                const competence=(items[0]?.competence)||`${ym}-01`;
+                return `<div class="projected-month-group">
+                  <div class="projected-month-head">
+                    <strong>${monthLabel(competence)}</strong>
+                    <span class="projected-month-total">${fmtBRL.format(total)}</span>
+                  </div>
+                  <div class="projected-month-items">
+                    ${items
+                      .sort((a,b)=>{
+                        const ta=txByGroup.get(a.purchase_group_id);
+                        const tb=txByGroup.get(b.purchase_group_id);
+                        return String(ta?.description||'').localeCompare(String(tb?.description||''),'pt-BR',{sensitivity:'base'})
+                          || Number(a.installment_number||0)-Number(b.installment_number||0);
+                      })
+                      .map(p=>{
+                        const sourceTx=txByGroup.get(p.purchase_group_id);
+                        return `<div class="projected-row">
+                          <span class="projected-description">
+                            <span>${esc(sourceTx?.description||'Compra parcelada')}</span>
+                            <small>Parcela ${p.installment_number}/${p.installment_total}</small>
+                          </span>
+                          <strong>${fmtBRL.format(Number(p.amount||0))}</strong>
+                        </div>`;
+                      }).join('')}
+                  </div>
+                </div>`;
+              }).join('');
+          })()}
         </div>
       `:''}
     `;
