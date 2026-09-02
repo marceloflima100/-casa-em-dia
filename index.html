@@ -388,6 +388,41 @@
   .projected-month-items .projected-row{padding:14px 20px;border:none;border-bottom:1px solid var(--line);border-radius:0}
   .projected-description{display:flex;flex-direction:column;gap:4px}
   .projected-description small{color:var(--muted);font-size:11px;font-weight:700}
+
+.bulk-select-toolbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 24px;
+  border-bottom:1px solid var(--line);background:#fff
+}
+.bulk-select-toolbar .bulk-count{font-size:12px;font-weight:900;color:var(--muted);margin-right:auto}
+.bulk-select-toolbar .btn:disabled{opacity:.45;cursor:not-allowed}
+.tx-select,.tx-select-all{width:16px;height:16px;cursor:pointer}
+.repeat-modal{
+  position:fixed;inset:0;background:rgba(45,52,54,.5);z-index:10070;
+  display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)
+}
+.repeat-modal.show{display:flex}
+.repeat-card{
+  width:min(560px,100%);background:#fff;border-radius:24px;padding:30px;
+  box-shadow:0 30px 70px rgba(0,0,0,.25)
+}
+.repeat-card h3{margin:0 0 8px;font-size:20px;font-weight:900;text-transform:uppercase}
+.repeat-card>p{margin:0 0 20px;color:var(--muted);font-size:13px;line-height:1.5}
+.repeat-options{display:grid;gap:10px}
+.repeat-option{
+  display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+  border:2px solid var(--line);border-radius:15px;padding:13px 14px;background:#fff
+}
+.repeat-option input[type=radio]{margin-top:3px}
+.repeat-option strong{display:block;font-size:14px}
+.repeat-option small{display:block;margin-top:3px;color:var(--muted);font-size:12px}
+.repeat-inline{display:flex;gap:8px;align-items:center;margin-top:8px}
+.repeat-inline input{border:1px solid var(--line);border-radius:10px;padding:9px 10px;max-width:160px}
+.repeat-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+@media(max-width:680px){
+  .bulk-select-toolbar{padding:12px 16px}
+  .repeat-card{padding:22px}
+}
+
 </style>
 </head>
 <body>
@@ -530,9 +565,15 @@
           </select>
           <button id="sortDirection" type="button" class="btn btn-light sort-direction" title="Inverter ordem">↑ Crescente</button>
         </div>
+        <div class="bulk-select-toolbar">
+          <span class="bulk-count" id="bulkSelectedCount">0 selecionados</span>
+          <button id="repeatSelectedBtn" type="button" class="btn btn-primary" disabled>↻ Repetir selecionados</button>
+          <button id="clearSelectedBtn" type="button" class="btn btn-light" disabled>Limpar seleção</button>
+        </div>
         <div class="table-scroll">
           <table>
             <thead><tr>
+              <th style="width:42px;text-align:center"><input id="txSelectAll" class="tx-select-all" type="checkbox" title="Selecionar lançamentos visíveis"></th>
               <th style="width:115px">Data</th>
               <th style="width:210px">Descrição</th>
               <th style="width:120px">Tipo</th>
@@ -606,7 +647,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 22</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 23</div>
   </main>
 </div>
 
@@ -649,6 +690,40 @@
     <div class="recon-create-actions">
       <button id="reconCreateCancel" type="button" class="btn btn-light">Cancelar</button>
       <button id="reconCreateConfirm" type="button" class="btn btn-primary">Criar e conciliar</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="repeatModal" class="repeat-modal" aria-hidden="true">
+  <div class="repeat-card">
+    <h3>Repetir lançamentos</h3>
+    <p id="repeatModalText">Escolha por quanto tempo os lançamentos selecionados devem ser repetidos.</p>
+    <div class="repeat-options">
+      <label class="repeat-option">
+        <input type="radio" name="repeatMode" value="count" checked>
+        <span><strong>Repetir um número de vezes</strong><small>Cria a quantidade escolhida de meses futuros.</small>
+          <span class="repeat-inline"><input id="repeatCount" type="number" min="1" max="120" value="3"> vezes</span>
+        </span>
+      </label>
+      <label class="repeat-option">
+        <input type="radio" name="repeatMode" value="endYear">
+        <span><strong>Até o fim deste ano</strong><small>Repete mensalmente até dezembro do ano do lançamento.</small></span>
+      </label>
+      <label class="repeat-option">
+        <input type="radio" name="repeatMode" value="endNextYear">
+        <span><strong>Até o fim do próximo ano</strong><small>Repete mensalmente até dezembro do ano seguinte.</small></span>
+      </label>
+      <label class="repeat-option">
+        <input type="radio" name="repeatMode" value="specific">
+        <span><strong>Até um mês específico</strong><small>O mês escolhido também será incluído.</small>
+          <span class="repeat-inline"><input id="repeatUntilMonth" type="month"></span>
+        </span>
+      </label>
+    </div>
+    <div class="repeat-actions">
+      <button id="repeatCancelBtn" type="button" class="btn btn-light">Cancelar</button>
+      <button id="repeatConfirmBtn" type="button" class="btn btn-primary">Criar repetições</button>
     </div>
   </div>
 </div>
@@ -1982,6 +2057,132 @@ function handleQuickAdd(){
   save();refreshAll();
 }
 
+const selectedTransactionIds=new Set();
+
+function updateBulkSelectionUi(visibleIds=[]){
+  // Remove selections that no longer exist in state.
+  const validIds=new Set(state.transactions.map(t=>String(t.id)));
+  [...selectedTransactionIds].forEach(id=>{if(!validIds.has(id))selectedTransactionIds.delete(id);});
+
+  const count=selectedTransactionIds.size;
+  const countEl=document.getElementById("bulkSelectedCount");
+  const repeatBtn=document.getElementById("repeatSelectedBtn");
+  const clearBtn=document.getElementById("clearSelectedBtn");
+  if(countEl)countEl.textContent=`${count} selecionado${count===1?"":"s"}`;
+  if(repeatBtn)repeatBtn.disabled=count===0;
+  if(clearBtn)clearBtn.disabled=count===0;
+
+  const selectAll=document.getElementById("txSelectAll");
+  if(selectAll){
+    const selectable=visibleIds.map(String);
+    const selectedVisible=selectable.filter(id=>selectedTransactionIds.has(id)).length;
+    selectAll.checked=selectable.length>0 && selectedVisible===selectable.length;
+    selectAll.indeterminate=selectedVisible>0 && selectedVisible<selectable.length;
+  }
+}
+
+function clearTransactionSelection(){
+  selectedTransactionIds.clear();
+  document.querySelectorAll(".tx-select").forEach(x=>x.checked=false);
+  updateBulkSelectionUi([]);
+}
+
+function repeatMonthDistance(fromYm,toYm){
+  const [fy,fm]=fromYm.split("-").map(Number);
+  const [ty,tm]=toYm.split("-").map(Number);
+  return (ty-fy)*12+(tm-fm);
+}
+
+function repeatExistingMatch(item,targetYm){
+  return state.transactions.some(t=>
+    String(t.date||"").slice(0,7)===targetYm &&
+    String(t.description||"").trim().toLowerCase()===String(item.description||"").trim().toLowerCase() &&
+    t.type===item.type &&
+    t.category===item.category &&
+    t.person===item.person &&
+    Math.abs(Number(t.value||0)-Number(item.value||0))<0.01
+  );
+}
+
+function openRepeatModal(){
+  const items=state.transactions.filter(t=>selectedTransactionIds.has(String(t.id)) && !t.card_statement_id);
+  if(!items.length){alert("Selecione pelo menos um lançamento.");return;}
+  const modal=document.getElementById("repeatModal");
+  const text=document.getElementById("repeatModalText");
+  if(text)text.textContent=`${items.length} lançamento${items.length===1?"":"s"} selecionado${items.length===1?"":"s"}. Escolha até quando repetir.`;
+  const defaultUntil=addMonths(state.selected,3);
+  const until=document.getElementById("repeatUntilMonth");
+  if(until)until.value=defaultUntil;
+  modal?.classList.add("show");
+  modal?.setAttribute("aria-hidden","false");
+}
+
+function closeRepeatModal(){
+  const modal=document.getElementById("repeatModal");
+  modal?.classList.remove("show");
+  modal?.setAttribute("aria-hidden","true");
+}
+
+function repeatOffsetsForItem(item,mode){
+  const baseYm=String(item.date||"").slice(0,7);
+  if(!baseYm)return [];
+  let count=0;
+
+  if(mode==="count"){
+    count=Math.max(1,Math.min(120,Number(document.getElementById("repeatCount")?.value||1)));
+  }else if(mode==="endYear"){
+    const y=Number(baseYm.slice(0,4));
+    count=repeatMonthDistance(baseYm,`${y}-12`);
+  }else if(mode==="endNextYear"){
+    const y=Number(baseYm.slice(0,4))+1;
+    count=repeatMonthDistance(baseYm,`${y}-12`);
+  }else if(mode==="specific"){
+    const until=document.getElementById("repeatUntilMonth")?.value||"";
+    if(!until)return null;
+    count=repeatMonthDistance(baseYm,until);
+  }
+
+  if(count<1)return [];
+  return Array.from({length:count},(_,i)=>i+1);
+}
+
+async function confirmRepeatSelected(){
+  const mode=document.querySelector('input[name="repeatMode"]:checked')?.value||"count";
+  const items=state.transactions.filter(t=>selectedTransactionIds.has(String(t.id)) && !t.card_statement_id);
+  if(!items.length){closeRepeatModal();return;}
+
+  let created=0,skipped=0;
+  for(const item of items){
+    const offsets=repeatOffsetsForItem(item,mode);
+    if(offsets===null){alert("Escolha o mês final.");return;}
+    if(!offsets.length){skipped++;continue;}
+
+    for(const offset of offsets){
+      const targetYm=addMonths(String(item.date).slice(0,7),offset);
+      if(repeatExistingMatch(item,targetYm)){skipped++;continue;}
+
+      state.transactions.push({
+        ...item,
+        id:"tmp-"+Date.now()+"-"+offset+"-"+Math.random(),
+        date:dateWithDayForMonth(targetYm+"-01",item.date),
+        status:"previsto",
+        recurring:false,
+        recurrence_series_id:null,
+        source:"repeticao",
+        bank_statement_transaction_id:null,
+        card_statement_id:null
+      });
+      created++;
+    }
+  }
+
+  closeRepeatModal();
+  clearTransactionSelection();
+  save();
+  refreshAll();
+  alert(`${created} lançamento${created===1?"":"s"} criado${created===1?"":"s"}${skipped?` • ${skipped} repetição(ões) já existente(s) ou fora do período`:''}.`);
+}
+
 function renderTransactions(){
   const q=(document.getElementById("searchFilter").value||"").toLowerCase();
   const tf=document.getElementById("typeFilter").value,pf=document.getElementById("personFilter").value,cf=document.getElementById("categoryFilter").value;
@@ -2022,6 +2223,7 @@ function renderTransactions(){
     const consolidated=!!t.card_statement_id;
     if(consolidated){
       return `<tr data-id="${t.id}" class="card-consolidated-row">
+        <td style="text-align:center">—</td>
         <td>${brd(t.date)}</td>
         <td><strong>${esc(t.description)}</strong><div class="card-consolidated-tag">💳 Fatura consolidada</div></td>
         <td>Despesa</td>
@@ -2033,10 +2235,11 @@ function renderTransactions(){
         <td><div class="row-actions"><button class="icon-btn card-expand" title="Ver itens da fatura">⌄</button></div></td>
       </tr>
       <tr class="card-detail-row" data-detail-for="${t.id}" style="display:none">
-        <td colspan="9"><div class="card-detail-box">Carregando itens...</div></td>
+        <td colspan="10"><div class="card-detail-box">Carregando itens...</div></td>
       </tr>`;
     }
     return `<tr data-id="${t.id}">
+      <td style="text-align:center"><input class="tx-select" type="checkbox" data-select-id="${t.id}" ${selectedTransactionIds.has(String(t.id))?"checked":""}></td>
       <td>${inputCell("date",t.date,'data-field="date"')}</td>
       <td>${inputCell("text",t.description,'data-field="description"')}</td>
       <td><select data-field="type"><option value="expense" ${t.type==="expense"?"selected":""}>Despesa</option><option value="income" ${t.type==="income"?"selected":""}>Receita</option><option value="adjustment" ${t.type==="adjustment"?"selected":""}>Saldo/Ajuste</option></select></td>
@@ -2047,7 +2250,18 @@ function renderTransactions(){
       <td>${inputCell("number",Number(t.value||0).toFixed(2),'data-field="value" step="0.01" class="money"')}</td>
       <td><div class="row-actions"><button class="icon-btn duplicate" title="Duplicar">⧉</button><button class="icon-btn delete" title="Excluir">×</button></div></td>
     </tr>`;
-  }).join(""):'<tr><td colspan="9"><div class="empty">Nenhum lançamento encontrado.</div></td></tr>';
+  }).join(""):'<tr><td colspan="10"><div class="empty">Nenhum lançamento encontrado.</div></td></tr>';
+
+  const visibleSelectableIds=arr.filter(t=>!t.card_statement_id).map(t=>String(t.id));
+  body.querySelectorAll(".tx-select").forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      const id=String(cb.dataset.selectId);
+      if(cb.checked)selectedTransactionIds.add(id);
+      else selectedTransactionIds.delete(id);
+      updateBulkSelectionUi(visibleSelectableIds);
+    });
+  });
+  updateBulkSelectionUi(visibleSelectableIds);
 
   body.querySelectorAll("[data-field]").forEach(el=>{
     el.addEventListener("change",async e=>{
@@ -2208,9 +2422,9 @@ function showSection(id){
   if(id==="cards")setTimeout(async()=>{await loadCreditCards();await loadCardStatements();},20);
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showSection(b.dataset.section));
-document.getElementById("monthSelect").onchange=e=>{state.selected=e.target.value;refreshAll();};
-document.getElementById("prevMonth").onclick=()=>{state.selected=addMonths(state.selected,-1);refreshAll();};
-document.getElementById("nextMonth").onclick=()=>{state.selected=addMonths(state.selected,1);refreshAll();};
+document.getElementById("monthSelect").onchange=e=>{state.selected=e.target.value;clearTransactionSelection();refreshAll();};
+document.getElementById("prevMonth").onclick=()=>{state.selected=addMonths(state.selected,-1);clearTransactionSelection();refreshAll();};
+document.getElementById("nextMonth").onclick=()=>{state.selected=addMonths(state.selected,1);clearTransactionSelection();refreshAll();};
 document.getElementById("addExpense").onclick=()=>addBlank("expense");
 document.getElementById("addIncome").onclick=()=>addBlank("income");
 document.getElementById("generateForecast").onclick=()=>{ensureForecast(8,true);alert("Previsão atualizada para os próximos meses.");refreshAll();showSection("forecast");};
@@ -2239,6 +2453,20 @@ if(sortDirection){
   });
 }
 document.getElementById("qAdd").onclick=handleQuickAdd;
+document.getElementById("repeatSelectedBtn")?.addEventListener("click",openRepeatModal);
+document.getElementById("clearSelectedBtn")?.addEventListener("click",clearTransactionSelection);
+document.getElementById("repeatCancelBtn")?.addEventListener("click",closeRepeatModal);
+document.getElementById("repeatConfirmBtn")?.addEventListener("click",confirmRepeatSelected);
+document.getElementById("repeatModal")?.addEventListener("click",e=>{if(e.target.id==="repeatModal")closeRepeatModal();});
+document.getElementById("txSelectAll")?.addEventListener("change",e=>{
+  document.querySelectorAll("#txBody .tx-select").forEach(cb=>{
+    cb.checked=e.target.checked;
+    const id=String(cb.dataset.selectId);
+    if(e.target.checked)selectedTransactionIds.add(id);
+    else selectedTransactionIds.delete(id);
+  });
+  updateBulkSelectionUi([...document.querySelectorAll("#txBody .tx-select")].map(cb=>String(cb.dataset.selectId)));
+});
 // ===== Supabase online adapter =====
 const SUPABASE_URL = "https://xdpiujcmjxbmbknozlwx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QjlWotF65xtWZfwVMTnnfQ_C5YF74ah";
