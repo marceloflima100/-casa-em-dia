@@ -606,7 +606,7 @@
   </div>
 </section>
 
-    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 21</div>
+    <div class="footer-note">Casa em Dia • GitHub Pages + Supabase • dados compartilhados • v cartões 22</div>
   </main>
 </div>
 
@@ -1833,30 +1833,68 @@ function applyRecurringField(target,field,value,sourceItem){
     target.recurrence_series_id=null;
   }
 }
+
+function ensureRecurringSeriesMonths(item,months=12){
+  if(!item)return;
+  if(!item.recurrence_series_id)item.recurrence_series_id=crypto.randomUUID();
+
+  const seriesId=item.recurrence_series_id;
+  const baseYm=String(item.date||"").slice(0,7);
+  if(!baseYm)return;
+
+  for(let i=1;i<months;i++){
+    const ym=addMonths(baseYm,i);
+
+    // First preference: an existing member of the same recurring series.
+    let existing=state.transactions.find(t=>
+      t!==item &&
+      t.recurrence_series_id===seriesId &&
+      String(t.date||"").slice(0,7)===ym
+    );
+
+    // Recover old forecasts that represent the same expense but had no series ID.
+    if(!existing){
+      existing=state.transactions.find(t=>
+        t!==item &&
+        !t.recurrence_series_id &&
+        String(t.date||"").slice(0,7)===ym &&
+        String(t.description||"").trim().toLowerCase()===String(item.description||"").trim().toLowerCase() &&
+        t.type===item.type &&
+        t.person===item.person &&
+        Math.abs(Number(t.value||0)-Number(item.value||0))<0.01
+      );
+      if(existing){
+        existing.recurring=true;
+        existing.recurrence_series_id=seriesId;
+        existing.source="previsao";
+      }
+    }
+
+    if(existing)continue;
+
+    state.transactions.push({
+      ...item,
+      id:"tmp-"+Date.now()+"-"+i+"-"+Math.random(),
+      date:dateWithDayForMonth(ym+"-01",item.date),
+      status:"previsto",
+      recurring:true,
+      recurrence_series_id:seriesId,
+      source:"previsao",
+      bank_statement_transaction_id:null,
+      card_statement_id:null
+    });
+  }
+}
+
 async function handleRecurringEdit(item,field,newValue,oldValue){
   const wasRecurring=!!item.recurring;
   const isTurningOn=field==="recurring" && newValue===true;
-  if(isTurningOn && !item.recurrence_series_id){
-    item.recurrence_series_id=crypto.randomUUID();
 
-    const existingSameSeries=state.transactions.some(t=>t!==item && t.recurrence_series_id===item.recurrence_series_id);
-    if(!existingSameSeries){
-      const baseYm=String(item.date||"").slice(0,7);
-      for(let i=1;i<12;i++){
-        const ym=addMonths(baseYm,i);
-        state.transactions.push({
-          ...item,
-          id:"tmp-"+Date.now()+"-"+i+"-"+Math.random(),
-          date:dateWithDayForMonth(ym+"-01",item.date),
-          status:"previsto",
-          recurring:true,
-          recurrence_series_id:item.recurrence_series_id,
-          source:"previsao",
-          bank_statement_transaction_id:null,
-          card_statement_id:null
-        });
-      }
-    }
+  // Any recurring item must have a complete future series.
+  // This also repairs older recurring rows that had no recurrence_series_id.
+  if(wasRecurring || isTurningOn){
+    if(!item.recurrence_series_id)item.recurrence_series_id=crypto.randomUUID();
+    ensureRecurringSeriesMonths(item,12);
   }
 
   const participates=wasRecurring||isTurningOn||!!item.recurrence_series_id;
