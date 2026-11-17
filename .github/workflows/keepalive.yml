@@ -4,7 +4,7 @@ name: Keepalive
 #   1. o projeto Supabase, que o plano Free pausa após ~7 dias sem atividade no banco;
 #   2. este próprio agendamento, que o GitHub desativa após 60 dias sem atividade no repositório.
 # O passo "Consultar o banco" resolve o primeiro; o passo "Registrar execução" resolve o segundo.
-# O resumo no Telegram roda por último e nunca derruba os dois de cima.
+# O resumo por e-mail roda por último e nunca derruba os dois de cima.
 
 on:
   schedule:
@@ -63,19 +63,20 @@ jobs:
           git push
           echo "Registro gravado. Agendamento preservado por mais 60 dias."
 
-      - name: Resumo no Telegram (só quando há pendência)
+      - name: Resumo por e-mail (só quando há pendência)
         continue-on-error: true   # não pode derrubar o keepalive acima
         env:
           SUPABASE_URL: https://xdpiujcmjxbmbknozlwx.supabase.co
           SUPABASE_KEY: sb_publishable_QjlWotF65xtWZfwVMTnnfQ_C5YF74ah
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
           BOT_EMAIL: ${{ secrets.SUPABASE_BOT_EMAIL }}
           BOT_SENHA: ${{ secrets.SUPABASE_BOT_PASSWORD }}
+          GMAIL_USER: ${{ vars.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_DESTINATARIOS: ${{ vars.EMAIL_DESTINATARIOS }}
         run: |
           set -euo pipefail
-          if [ -z "${TELEGRAM_TOKEN}" ] || [ -z "${BOT_EMAIL}" ]; then
-            echo "Segredos do Telegram ainda não configurados - resumo ignorado."
+          if [ -z "${GMAIL_APP_PASSWORD}" ] || [ -z "${BOT_EMAIL}" ]; then
+            echo "Segredos do e-mail ainda não configurados - resumo ignorado."
             exit 0
           fi
-          python3 .github/scripts/resumo_telegram.py
+          python3 .github/scripts/resumo_email.py
