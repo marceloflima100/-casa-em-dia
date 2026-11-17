@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resumo do Casa em Dia no Telegram.
+"""Resumo do Casa em Dia por e-mail.
 
 Só manda mensagem quando existe algo pendente de verdade. Lembrete de
 calendário ("preencha o sistema") vira ruído e passa a ser ignorado em poucas
@@ -12,16 +12,19 @@ enxerga exatamente o que o RLS permite. Nenhuma chave service_role é usada.
 import json
 import os
 import sys
+import smtplib
 import urllib.error
 import urllib.request
+from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 
 URL = os.environ["SUPABASE_URL"].rstrip("/")
 KEY = os.environ["SUPABASE_KEY"]
 EMAIL = os.environ["BOT_EMAIL"]
 SENHA = os.environ["BOT_SENHA"]
-TOKEN = os.environ["TELEGRAM_TOKEN"]
-CHAT = os.environ["TELEGRAM_CHAT"]
+REMETENTE = os.environ["GMAIL_USER"]
+SENHA_APP = os.environ["GMAIL_APP_PASSWORD"]
+DESTINATARIOS = [e.strip() for e in os.environ["EMAIL_DESTINATARIOS"].split(",") if e.strip()]
 APP = os.environ.get("APP_URL", "https://marceloflima100.github.io/-casa-em-dia/")
 
 FUSO = timezone(timedelta(hours=-3))  # horário de Brasília
@@ -58,61 +61,59 @@ def brl(v):
 
 
 def montar(hoje, vencidos, ultima_atualizacao, ultima_fatura):
-    """Decide se vale avisar e monta o texto. Função pura, para poder testar."""
-    linhas = []
+    """Decide se vale avisar e monta assunto e corpo. Função pura, para testar."""
+    blocos = []      # cada bloco é um assunto fechado, com suas próprias linhas
+    manchetes = []   # viram o assunto do e-mail, para triar sem abrir
 
     if vencidos:
         total = sum(float(t.get("amount") or 0) for t in vencidos)
-        linhas.append(
-            f"⚠️ *{len(vencidos)} lançamentos previstos já venceram* "
-            f"e seguem sem confirmação — {brl(total)}"
-        )
+        linhas = [
+            f"{len(vencidos)} lançamentos previstos já venceram e seguem "
+            f"sem confirmação - {brl(total)}"
+        ]
         for t in vencidos[:5]:
             d = datetime.strptime(t["transaction_date"], "%Y-%m-%d").date()
-            linhas.append(f"    • {d.strftime('%d/%m')} — {t['description']} — {brl(t.get('amount'))}")
+            linhas.append(f"  - {d.strftime('%d/%m')}  {t['description']}  {brl(t.get('amount'))}")
         if len(vencidos) > 5:
-            linhas.append(f"    • … e mais {len(vencidos) - 5}")
+            linhas.append(f"  - ... e mais {len(vencidos) - 5}")
+        blocos.append("\n".join(linhas))
+        manchetes.append(f"{len(vencidos)} vencidos")
 
     if ultima_atualizacao is not None:
         dias = (hoje - ultima_atualizacao).days
         if dias >= 7:
-            linhas.append(
-                f"🕗 Nenhum lançamento novo há *{dias} dias* "
+            blocos.append(
+                f"Nenhum lançamento novo há {dias} dias "
                 f"(o último foi em {ultima_atualizacao.strftime('%d/%m')})"
             )
+            manchetes.append(f"{dias} dias parado")
 
     # a Itaú Black fecha dia 15 e vence dia 17: do dia 16 em diante a fatura já saiu
     competencia_atual = hoje.strftime("%Y-%m")
     if hoje.day >= 16 and (ultima_fatura or "") < competencia_atual:
         rotulo = ultima_fatura or "nenhuma ainda"
-        linhas.append(
-            f"💳 Fatura de {hoje.strftime('%m/%Y')} ainda não importada "
-            f"(última: {rotulo})"
+        blocos.append(
+            f"Fatura de {hoje.strftime('%m/%Y')} ainda não importada (última: {rotulo})"
         )
+        manchetes.append("fatura pendente")
 
-    if not linhas:
-        return False, ""
+    if not blocos:
+        return False, "", ""
 
-    linhas.append("")
-    linhas.append(f"[Abrir o Casa em Dia]({APP})")
-    return True, "*Casa em Dia*\n\n" + "\n".join(linhas)
+    assunto = "Casa em Dia - " + ", ".join(manchetes)
+    corpo = "\n\n".join(blocos) + "\n\nAbrir o Casa em Dia:\n" + APP + "\n"
+    return True, assunto, corpo
 
 
-def enviar(texto):
-    corpo = json.dumps(
-        {
-            "chat_id": CHAT,
-            "text": texto,
-            "parse_mode": "Markdown",
-            "disable_web_page_preview": True,
-        }
-    ).encode()
-    http(
-        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-        corpo,
-        {"Content-Type": "application/json"},
-        "POST",
-    )
+def enviar(assunto, corpo):
+    msg = EmailMessage()
+    msg["Subject"] = assunto
+    msg["From"] = f"Casa em Dia <{REMETENTE}>"
+    msg["To"] = ", ".join(DESTINATARIOS)
+    msg.set_content(corpo)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+        s.login(REMETENTE, SENHA_APP)
+        s.send_message(msg)
 
 
 def main():
@@ -141,13 +142,13 @@ def main():
     if faturas and faturas[0].get("competence"):
         ultima_fatura = str(faturas[0]["competence"])[:7]
 
-    deve_avisar, texto = montar(hoje, vencidos, ultima_atualizacao, ultima_fatura)
+    deve_avisar, assunto, corpo = montar(hoje, vencidos, ultima_atualizacao, ultima_fatura)
     if not deve_avisar:
-        print("Nada pendente — nenhuma mensagem enviada.")
+        print("Nada pendente - nenhum e-mail enviado.")
         return
 
-    enviar(texto)
-    print(f"Mensagem enviada ao Telegram ({len(texto)} caracteres).")
+    enviar(assunto, corpo)
+    print(f"E-mail enviado para {len(DESTINATARIOS)} destinatário(s): {assunto}")
 
 
 if __name__ == "__main__":
@@ -155,8 +156,8 @@ if __name__ == "__main__":
         main()
     except urllib.error.HTTPError as e:
         detalhe = e.read().decode()[:200]
-        print(f"::warning::Resumo do Telegram falhou: HTTP {e.code} — {detalhe}")
+        print(f"::warning::Resumo por e-mail falhou: HTTP {e.code} — {detalhe}")
         sys.exit(1)
     except Exception as e:  # noqa: BLE001
-        print(f"::warning::Resumo do Telegram falhou: {e}")
+        print(f"::warning::Resumo por e-mail falhou: {e}")
         sys.exit(1)
