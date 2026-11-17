@@ -1,0 +1,63 @@
+name: Keepalive
+
+# Dois relógios precisam continuar andando:
+#   1. o projeto Supabase, que o plano Free pausa após ~7 dias sem atividade no banco;
+#   2. este próprio agendamento, que o GitHub desativa após 60 dias sem atividade no repositório.
+# O passo "Consultar o banco" resolve o primeiro; o passo "Registrar execução" resolve o segundo.
+
+on:
+  schedule:
+    - cron: "17 11 */3 * *"   # a cada 3 dias, 11:17 UTC (08:17 em Brasília)
+  workflow_dispatch:          # permite rodar na mão pelo botão "Run workflow"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  manter-ativo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Consultar o banco no Supabase
+        env:
+          SUPABASE_URL: https://xdpiujcmjxbmbknozlwx.supabase.co
+          SUPABASE_KEY: sb_publishable_QjlWotF65xtWZfwVMTnnfQ_C5YF74ah
+        run: |
+          set -euo pipefail
+          codigo=$(curl -sS -o /tmp/resposta.txt -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            --max-time 30 --retry 3 --retry-delay 20 --retry-all-errors \
+            "${SUPABASE_URL}/rest/v1/transactions?select=id&limit=1")
+          echo "HTTP ${codigo} - resposta: $(cat /tmp/resposta.txt)"
+          if [ "${codigo}" != "200" ]; then
+            echo "::error::Supabase respondeu ${codigo}. O projeto pode estar pausado: abra o painel do Supabase e clique em Resume project."
+            exit 1
+          fi
+          echo "Banco respondeu normalmente. Pausa por inatividade adiada por mais 7 dias."
+
+      - name: Registrar execução (no máximo a cada 21 dias)
+        run: |
+          set -euo pipefail
+          arquivo=.github/keepalive.txt
+          ultima=$(git log -1 --format=%ct -- "$arquivo" || true)
+          if [ -z "$ultima" ]; then ultima=0; fi
+          agora=$(date -u +%s)
+          if [ $((agora - ultima)) -lt 1814400 ]; then
+            echo "Último registro há menos de 21 dias. Nada a commitar."
+            exit 0
+          fi
+          mkdir -p .github
+          date -u "+Última verificação: %Y-%m-%d %H:%M UTC" > "$arquivo"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$arquivo"
+          git commit -m "chore: keepalive $(date -u +%Y-%m-%d)"
+          git push
+          echo "Registro gravado. Agendamento preservado por mais 60 dias."
