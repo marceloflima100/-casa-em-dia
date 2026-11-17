@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resumo do Casa em Dia por e-mail.
+"""Resumo do Casa em Dia: avisa por Telegram, e-mail, ou os dois.
 
 Só manda mensagem quando existe algo pendente de verdade. Lembrete de
 calendário ("preencha o sistema") vira ruído e passa a ser ignorado em poucas
@@ -7,6 +7,9 @@ semanas; aviso que chega com a informação dentro, não.
 
 Lê o banco autenticado como um usuário comum do Supabase (o "robô"), então
 enxerga exatamente o que o RLS permite. Nenhuma chave service_role é usada.
+
+O canal vem da variável CANAIS ("telegram", "email" ou "telegram,email").
+A decisão do que avisar é a mesma nos dois; muda só a entrega.
 """
 
 import json
@@ -22,9 +25,14 @@ URL = os.environ["SUPABASE_URL"].rstrip("/")
 KEY = os.environ["SUPABASE_KEY"]
 EMAIL = os.environ["BOT_EMAIL"]
 SENHA = os.environ["BOT_SENHA"]
-REMETENTE = os.environ["GMAIL_USER"]
-SENHA_APP = os.environ["GMAIL_APP_PASSWORD"]
-DESTINATARIOS = [e.strip() for e in os.environ["EMAIL_DESTINATARIOS"].split(",") if e.strip()]
+CANAIS = [c.strip().lower() for c in os.environ.get("CANAIS", "telegram").split(",") if c.strip()]
+
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT = os.environ.get("TELEGRAM_CHAT", "")
+
+REMETENTE = os.environ.get("GMAIL_USER", "")
+SENHA_APP = os.environ.get("GMAIL_APP_PASSWORD", "")
+DESTINATARIOS = [e.strip() for e in os.environ.get("EMAIL_DESTINATARIOS", "").split(",") if e.strip()]
 APP = os.environ.get("APP_URL", "https://marceloflima100.github.io/-casa-em-dia/")
 
 FUSO = timezone(timedelta(hours=-3))  # horário de Brasília
@@ -63,7 +71,7 @@ def brl(v):
 def montar(hoje, vencidos, ultima_atualizacao, ultima_fatura):
     """Decide se vale avisar e monta assunto e corpo. Função pura, para testar."""
     blocos = []      # cada bloco é um assunto fechado, com suas próprias linhas
-    manchetes = []   # viram o assunto do e-mail, para triar sem abrir
+    manchetes = []   # viram o assunto do aviso, para triar sem abrir
 
     if vencidos:
         total = sum(float(t.get("amount") or 0) for t in vencidos)
@@ -105,7 +113,27 @@ def montar(hoje, vencidos, ultima_atualizacao, ultima_fatura):
     return True, assunto, corpo
 
 
-def enviar(assunto, corpo):
+def enviar_telegram(assunto, corpo):
+    """Texto puro de propósito: sem parse_mode, um '*' ou '_' vindo do nome de
+    um estabelecimento não quebra a mensagem. O Telegram já vira link sozinho."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT:
+        raise RuntimeError("TELEGRAM_TOKEN ou TELEGRAM_CHAT não configurado")
+    dados = json.dumps(
+        {"chat_id": TELEGRAM_CHAT, "text": assunto + "\n\n" + corpo,
+         "disable_web_page_preview": True}
+    ).encode()
+    http(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        dados,
+        {"Content-Type": "application/json"},
+        "POST",
+    )
+    return f"Telegram: enviado ao chat {TELEGRAM_CHAT}"
+
+
+def enviar_email(assunto, corpo):
+    if not REMETENTE or not SENHA_APP or not DESTINATARIOS:
+        raise RuntimeError("GMAIL_USER, GMAIL_APP_PASSWORD ou EMAIL_DESTINATARIOS não configurado")
     msg = EmailMessage()
     msg["Subject"] = assunto
     msg["From"] = f"Casa em Dia <{REMETENTE}>"
@@ -114,6 +142,25 @@ def enviar(assunto, corpo):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
         s.login(REMETENTE, SENHA_APP)
         s.send_message(msg)
+    return f"E-mail: enviado a {len(DESTINATARIOS)} destinatário(s)"
+
+
+ENTREGADORES = {"telegram": enviar_telegram, "email": enviar_email}
+
+
+def entregar(assunto, corpo, canais):
+    """Tenta cada canal. Um canal quebrado não impede o outro de entregar."""
+    sucessos, erros = [], []
+    for canal in canais:
+        funcao = ENTREGADORES.get(canal)
+        if funcao is None:
+            erros.append(f"{canal}: canal desconhecido")
+            continue
+        try:
+            sucessos.append(funcao(assunto, corpo))
+        except Exception as e:  # noqa: BLE001
+            erros.append(f"{canal}: {e}")
+    return sucessos, erros
 
 
 def main():
@@ -144,11 +191,17 @@ def main():
 
     deve_avisar, assunto, corpo = montar(hoje, vencidos, ultima_atualizacao, ultima_fatura)
     if not deve_avisar:
-        print("Nada pendente - nenhum e-mail enviado.")
+        print("Nada pendente - nenhum aviso enviado.")
         return
 
-    enviar(assunto, corpo)
-    print(f"E-mail enviado para {len(DESTINATARIOS)} destinatário(s): {assunto}")
+    sucessos, erros = entregar(assunto, corpo, CANAIS)
+    for linha in sucessos:
+        print(linha)
+    for linha in erros:
+        print(f"::warning::{linha}")
+    if not sucessos:
+        raise RuntimeError("nenhum canal conseguiu entregar o aviso")
+    print(f"Assunto: {assunto}")
 
 
 if __name__ == "__main__":
@@ -156,8 +209,8 @@ if __name__ == "__main__":
         main()
     except urllib.error.HTTPError as e:
         detalhe = e.read().decode()[:200]
-        print(f"::warning::Resumo por e-mail falhou: HTTP {e.code} — {detalhe}")
+        print(f"::warning::Resumo falhou: HTTP {e.code} — {detalhe}")
         sys.exit(1)
     except Exception as e:  # noqa: BLE001
-        print(f"::warning::Resumo por e-mail falhou: {e}")
+        print(f"::warning::Resumo falhou: {e}")
         sys.exit(1)
