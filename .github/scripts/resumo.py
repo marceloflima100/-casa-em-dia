@@ -167,6 +167,15 @@ def main():
     hoje = datetime.now(FUSO).date()
     token = entrar()
 
+    # Trava contra o silêncio falso: se o robô não estiver em family_members, o RLS
+    # devolve lista vazia em tudo e o resumo concluiria "está tudo em dia" para sempre.
+    # Banco realmente vazio não é cenário possível aqui, então zero = problema de acesso.
+    if not (consultar(token, "transactions?select=id&limit=1") or []):
+        raise RuntimeError(
+            "o robô não enxerga nenhum lançamento - confira se ele está em "
+            "family_members da família certa"
+        )
+
     vencidos = consultar(
         token,
         "transactions?select=transaction_date,description,amount"
