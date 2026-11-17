@@ -37,6 +37,10 @@ APP = os.environ.get("APP_URL", "https://marceloflima100.github.io/-casa-em-dia/
 
 FUSO = timezone(timedelta(hours=-3))  # horário de Brasília
 
+# Teto da consulta de vencidos. Precisa ser maior que o volume real, senão a
+# contagem E a soma saem truncadas - o aviso subestimaria a dívida em aberto.
+LIMITE_VENCIDOS = 1000
+
 
 def http(url, data=None, headers=None, metodo=None):
     req = urllib.request.Request(url, data=data, headers=headers or {}, method=metodo)
@@ -75,9 +79,11 @@ def montar(hoje, vencidos, ultima_atualizacao, ultima_fatura):
 
     if vencidos:
         total = sum(float(t.get("amount") or 0) for t in vencidos)
+        truncou = len(vencidos) >= LIMITE_VENCIDOS
+        prefixo = "pelo menos " if truncou else ""
         linhas = [
-            f"{len(vencidos)} lançamentos previstos já venceram e seguem "
-            f"sem confirmação - {brl(total)}"
+            f"{prefixo}{len(vencidos)} lançamentos previstos já venceram e seguem "
+            f"sem confirmação - {prefixo}{brl(total)}"
         ]
         for t in vencidos[:5]:
             d = datetime.strptime(t["transaction_date"], "%Y-%m-%d").date()
@@ -85,7 +91,7 @@ def montar(hoje, vencidos, ultima_atualizacao, ultima_fatura):
         if len(vencidos) > 5:
             linhas.append(f"  - ... e mais {len(vencidos) - 5}")
         blocos.append("\n".join(linhas))
-        manchetes.append(f"{len(vencidos)} vencidos")
+        manchetes.append(f"{prefixo}{len(vencidos)} vencidos")
 
     if ultima_atualizacao is not None:
         dias = (hoje - ultima_atualizacao).days
@@ -180,7 +186,7 @@ def main():
         token,
         "transactions?select=transaction_date,description,amount"
         f"&status=eq.previsto&transaction_date=lt.{hoje.isoformat()}"
-        "&order=transaction_date.asc&limit=100",
+        "&order=transaction_date.asc&limit=" + str(LIMITE_VENCIDOS),
     ) or []
 
     recentes = consultar(
