@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#009ceb" />
 <title>Casa em Dia — Finanças Compartilhadas</title>
 <style>
   :root{
@@ -57,7 +58,7 @@
     display:flex;flex-direction:column;align-items:center;gap:6px;
     font-weight:800;font-size:11px;text-transform:uppercase;position:relative;
   }
-  .nav button:hover,.nav button.active{background:rgba(255,255,255,.15);color:#fff}
+  .nav button.active{background:rgba(255,255,255,.15);color:#fff}
   .nav button.active::after{
     content:'';position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);
     border-width:12px;border-style:solid;border-color:transparent transparent var(--bg) transparent;
@@ -125,7 +126,7 @@
   table{width:100%;border-collapse:separate;border-spacing:0;min-width:1040px}
   th{position:sticky;top:0;z-index:3;background:#f8f9fa;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;text-align:left;padding:14px 10px;border-bottom:1px solid var(--line)}
   td{border-bottom:1px solid #f0f2f7;border-right:1px solid transparent;padding:6px 10px;background:#fff;font-size:13px;font-weight:500}
-  tr:hover td{background:#f8f9fa}
+  /* hover: ver a media query de ponteiro no fim do arquivo */
   
   td input,td select{width:100%;border:1px solid transparent;background:transparent;border-radius:8px;padding:8px 8px;outline:none;color:var(--ink);min-width:80px;font-weight:600;font-size:13px}
   td input:focus,td select:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(0,156,235,.1)}
@@ -206,7 +207,6 @@
     background:transparent!important;color:var(--muted)!important;display:flex!important;
     align-items:center!important;justify-content:center!important;cursor:pointer;font-size:20px;
   }
-  .password-toggle:hover{background:#f1f3f9!important}
   .auth-card button{width:100%;margin-top:24px;border:0;border-radius:12px;padding:16px;background:var(--blue);color:#fff;font-weight:900;font-size:16px;cursor:pointer;text-transform:uppercase}
   .auth-error{min-height:20px;color:var(--red);font-size:13px;margin-top:12px;font-weight:700}.auth-hidden{display:none!important}
 
@@ -284,7 +284,6 @@
   .statement-list{display:grid;gap:14px}
   .statement-item{border-radius:18px;background:#fff;box-shadow:var(--shadow);overflow:hidden}
   .statement-head{display:grid;grid-template-columns:1.3fr .7fr .7fr auto;gap:14px;align-items:center;padding:18px 20px;cursor:pointer}
-  .statement-head:hover{background:#fafcff}
   .statement-title{font-weight:900;font-size:15px}
   .statement-sub{font-size:12px;color:var(--muted);margin-top:4px;font-weight:600}
   .statement-total{font-weight:900;text-align:right;font-size:16px}
@@ -355,7 +354,6 @@
     width:100%;text-align:left;border:2px solid var(--line);background:#fff;
     border-radius:16px;padding:16px;cursor:pointer;transition:border-color 0.2s;
   }
-  .recurrence-options button:hover{border-color:var(--blue);background:#fafcff}
   .recurrence-options strong{display:block;font-size:15px;color:var(--ink);font-weight:900}
   .recurrence-options small{display:block;margin-top:6px;color:var(--muted);font-size:13px;font-weight:600}
   .recurrence-cancel{margin-top:16px;width:100%;padding:14px;border-radius:14px;font-weight:800;background:#f4f6f9;border:none}
@@ -422,6 +420,205 @@
   .bulk-select-toolbar{padding:12px 16px}
   .repeat-card{padding:22px}
 }
+
+  /* ======================================================================
+     Camada mobile-native — 18/11/2026
+     Aplica a skill mobile-native (Emil Kowalski): tira do app os sinais de
+     "site dentro do celular". Mexe só em apresentação; nenhum id, classe ou
+     atributo usado pelo JavaScript foi alterado.
+     ====================================================================== */
+
+  /* 1. Hover só onde existe ponteiro de verdade. Em tela de toque o estado
+        de hover fica preso depois do toque, como se o dedo não tivesse saído. */
+  @media (hover:hover) and (pointer:fine){
+    .nav button:hover{background:rgba(255,255,255,.15);color:#fff}
+    .table-scroll tr:hover td{background:#f8f9fa}
+    .password-toggle:hover{background:#f1f3f9!important}
+    .statement-head:hover{background:#fafcff}
+    .recurrence-options button:hover{border-color:var(--blue);background:#fafcff}
+  }
+
+  /* 2. Sem o retângulo cinza do toque, e sem a espera de 300ms. O retorno
+        passa a vir do :active, que responde no apertar e não no soltar. */
+  button,.btn,.icon-btn,.nav button,a,select,label,summary,[role=button]{
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+  button:active,.btn:active,.icon-btn:active,.nav button:active{
+    transform:scale(.97);transition:transform .06s ease;
+  }
+
+  /* 3. Toque longo em controle não vira seleção de texto. Fora dos controles
+        o texto continua selecionável — user-select no body impediria copiar
+        um valor da tabela. */
+  button,.nav button,.badge,.statement-badge,.kpi .label,th,
+  .recon-pill,.pill-installment,.pill-refund{user-select:none;-webkit-user-select:none}
+
+  /* 4. dvh acompanha a barra do navegador encolhendo ao rolar; vh não. */
+  .app{min-height:100vh;min-height:100dvh}
+
+  /* 5. Rolar uma lista interna até o fim não dispara o pull-to-refresh. */
+  html,body{overscroll-behavior-y:contain}
+  .table-scroll,.bank-table-wrap,.card-preview-wrap,.statement-body,
+  .recurrence-modal,.recon-create-modal,.repeat-modal{overscroll-behavior:contain}
+
+  /* 6. Safe area: nada embaixo do notch nem da barra de gestos. */
+  .sidebar{padding-top:calc(15px + env(safe-area-inset-top))}
+  .content{
+    padding-left:calc(40px + env(safe-area-inset-left));
+    padding-right:calc(40px + env(safe-area-inset-right));
+    padding-bottom:calc(30px + env(safe-area-inset-bottom));
+  }
+
+  @media(max-width:680px){
+    /* 7. 16px em todo campo. Abaixo disso o iOS dá zoom ao focar; travar o
+          zoom com maximum-scale seria pior, porque tira o recurso de quem
+          precisa dele. */
+    input,select,textarea{font-size:16px}
+
+    /* 8. Alvo de toque de 44px. */
+    .btn,.icon-btn,.month-nav button,.statement-toggle,.nav button,
+    .recurrence-cancel,.sort-direction{min-height:44px}
+    .icon-btn{min-width:44px}
+    .auth-card input{padding:14px 16px}
+
+    .content{
+      padding:20px calc(16px + env(safe-area-inset-right))
+              calc(24px + env(safe-area-inset-bottom))
+              calc(16px + env(safe-area-inset-left));
+    }
+    .sidebar{padding-left:16px;padding-right:16px}
+    .kpi{padding:20px}
+    .kpi .value{font-size:28px}
+    .panel{padding:18px}
+    .title h2{font-size:22px}
+
+    /* 9. A navegação rola na horizontal em vez de empilhar em três fileiras
+          e comer meia tela. pan-x deixa o gesto vertical para a página. */
+    .nav{
+      flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;width:100%;
+      justify-content:flex-start;gap:8px;padding-bottom:2px;
+      touch-action:pan-x;scroll-snap-type:x proximity;
+      scrollbar-width:none;-ms-overflow-style:none;
+    }
+    .nav::-webkit-scrollbar{display:none}
+    .nav button{flex:0 0 auto;scroll-snap-align:start;padding:10px 14px}
+
+    /* 10. Modal vira gaveta: sobe de baixo, onde o polegar alcança. */
+    .recurrence-modal,.recon-create-modal,.repeat-modal{align-items:flex-end;padding:0}
+    .recurrence-card,.recon-create-card,.repeat-card{
+      width:100%;max-height:88dvh;overflow-y:auto;
+      border-radius:24px 24px 0 0;
+      padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+    }
+    .recon-create-grid{grid-template-columns:1fr}
+    .recon-create-actions{flex-direction:column-reverse}
+    .recon-create-actions .btn{width:100%;justify-content:center}
+    .auth-overlay{
+      padding:16px calc(16px + env(safe-area-inset-right))
+              calc(16px + env(safe-area-inset-bottom))
+              calc(16px + env(safe-area-inset-left));
+    }
+    .auth-card{padding:24px 20px}
+
+    /* 11. A tabela de lançamentos vira cartões empilhados. Era min-width de
+           1040px num aparelho de 390px: um terço da linha por vez. O HTML
+           continua sendo <table>; muda só como ele é desenhado, então
+           edição em linha, seleção em massa e filtros seguem iguais.
+           Escopo preso em .table-scroll para não atingir as tabelas de
+           importação, extrato e fatura, que continuam rolando na horizontal. */
+    .table-scroll{overflow:visible;max-height:none;padding:12px;background:#f8f9fa}
+    .table-scroll table{min-width:0;display:block}
+    .table-scroll thead{display:none}
+    .table-scroll tbody{display:block}
+    .table-scroll tr{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;
+      background:#fff;border:1px solid var(--line);border-radius:16px;
+      padding:14px;margin-bottom:12px;box-shadow:var(--shadow);
+    }
+    /* rótulo em cima do campo e dois campos por linha: empilhar tudo numa
+       coluna só deixava o cartão com mais de 500px de altura */
+    .table-scroll td{
+      display:block;padding:0;border:0;background:transparent;
+      min-width:0;font-size:14px;
+    }
+    .table-scroll td::before{
+      display:block;margin-bottom:4px;
+      font-size:10px;font-weight:800;text-transform:uppercase;
+      letter-spacing:.04em;color:var(--muted);
+    }
+    .table-scroll td:nth-child(1)::before{content:"Selecionar"}
+    .table-scroll td:nth-child(2)::before{content:"Data"}
+    .table-scroll td:nth-child(4)::before{content:"Tipo"}
+    .table-scroll td:nth-child(5)::before{content:"Categoria"}
+    .table-scroll td:nth-child(6)::before{content:"Pessoa"}
+    .table-scroll td:nth-child(7)::before{content:"Status"}
+    .table-scroll td:nth-child(8)::before{content:"Recorrente"}
+    .table-scroll td:nth-child(9)::before{content:"Valor"}
+    .table-scroll td:nth-child(10)::before{content:"Ações"}
+
+    /* descrição é o título do cartão; depois os campos em pares;
+       selecionar e ações fecham o cartão na mesma linha */
+    .table-scroll td:nth-child(3){order:1;grid-column:1/-1;padding-bottom:8px;border-bottom:1px solid var(--line)}
+    .table-scroll td:nth-child(3)::before{content:none}
+    .table-scroll td:nth-child(3) input{font-size:16px;font-weight:800}
+    .table-scroll td:nth-child(2){order:2}
+    .table-scroll td:nth-child(9){order:3}
+    .table-scroll td:nth-child(9) input,.table-scroll td:nth-child(9) strong{font-size:17px;font-weight:900;text-align:right}
+    .table-scroll td:nth-child(9)::before{text-align:right}
+    .table-scroll td:nth-child(4){order:4}
+    .table-scroll td:nth-child(7){order:5}
+    .table-scroll td:nth-child(5){order:6}
+    .table-scroll td:nth-child(6){order:7}
+    .table-scroll td:nth-child(8){order:8}
+    .table-scroll td:nth-child(1){order:9;align-self:center}
+    .table-scroll td:nth-child(10){order:10;padding-top:10px;margin-top:2px;border-top:1px solid var(--line);grid-column:1/-1}
+
+    /* campo dentro do cartão precisa parecer campo: no desktop a borda é
+       transparente e some, o que no celular esconde que dá para editar */
+    .table-scroll td input,.table-scroll td select{
+      width:100%;min-width:0;min-height:42px;font-size:16px;
+      border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;
+    }
+    .table-scroll td input[type=checkbox]{
+      width:22px!important;height:22px;min-height:0;padding:0;border:0;justify-self:start;
+    }
+    /* o text-align:center vem no style= das células de marcar; no cartão
+       ele desalinha o rótulo das vizinhas */
+    .table-scroll td:nth-child(1),.table-scroll td:nth-child(8){text-align:left!important}
+    .table-scroll .row-actions{gap:10px;justify-content:flex-end}
+    .table-scroll .row-actions .icon-btn{min-height:44px;min-width:64px}
+    .table-scroll .card-consolidated-row{background:#fafcff}
+    /* fatura consolidada não se marca nem se repete: as duas células só
+       mostrariam "—" e ocupariam uma linha inteira do cartão */
+    .table-scroll .card-consolidated-row td:nth-child(1),
+    .table-scroll .card-consolidated-row td:nth-child(8){display:none}
+
+    /* linha de detalhe da fatura e estado vazio ocupam o cartão inteiro */
+    .table-scroll td[colspan]{display:block;padding:0;font-size:inherit}
+    .table-scroll td[colspan]::before{content:none}
+    .table-scroll tr:has(td[colspan]){padding:0;border:0;box-shadow:none;background:transparent}
+    .table-scroll .card-detail-table{min-width:0}
+    .table-scroll .card-detail-table th,.table-scroll .card-detail-table td{padding:8px}
+
+    .sheet-head{flex-direction:column;align-items:flex-start;padding:16px}
+    .filters{padding:12px 16px}
+    .filters input,.filters select{width:100%}
+    .summary-row{flex-direction:column;align-items:flex-start;gap:8px;padding:16px}
+    .bulk-select-toolbar .btn{flex:1;justify-content:center}
+
+    /* 12. Tabelas que continuam largas: rolagem lateral explícita e sem
+           arrastar a página junto. */
+    .bank-table-wrap,.card-preview-wrap,.statement-body{
+      -webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;
+    }
+    .bank-grid,.recon-top{grid-template-columns:1fr}
+    .bank-stats,.card-import-summary,.statement-details-grid{grid-template-columns:repeat(2,1fr)}
+    .card-import-controls{grid-template-columns:1fr}
+    .cards-grid{grid-template-columns:1fr}
+    .statement-head{grid-template-columns:1fr auto;gap:10px}
+    .recon-value{text-align:left}
+  }
 
 </style>
 </head>
