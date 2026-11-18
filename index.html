@@ -882,8 +882,8 @@
 
     <section id="bankImport" class="section">
       <div class="bank-grid">
-        <div class="bank-card"><h3>Importar Extrato Itaú</h3><p>Leia o OFX, confira e só depois grave no Supabase.</p><div class="bank-field"><label for="bankAccountSelect">Conta Itaú</label><select id="bankAccountSelect"><option value="">Carregando contas...</option></select></div><div class="bank-field"><label for="ofxFile">Arquivo OFX</label><input id="ofxFile" type="file" accept=".ofx,application/x-ofx,text/plain"></div><div class="bank-actions"><button class="btn btn-light" id="readOfxBtn">Pré-visualizar</button><button class="btn btn-primary" id="confirmOfxBtn" disabled>Confirmar importação</button></div><div id="ofxImportStatus" class="bank-status">Nenhum arquivo selecionado.</div></div>
-        <div class="bank-card"><h3>Pré-visualização</h3><p id="ofxPeriodLabel">Selecione um arquivo OFX.</p><div class="bank-stats"><div class="bank-stat"><span>Movimentações</span><b id="ofxCount">0</b></div><div class="bank-stat"><span>Créditos</span><b id="ofxCredits">R$ 0,00</b></div><div class="bank-stat"><span>Débitos</span><b id="ofxDebits">R$ 0,00</b></div><div class="bank-stat"><span>Duplicadas</span><b id="ofxDuplicates">0</b></div></div><div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th>FITID</th><th>Status</th></tr></thead><tbody id="ofxPreviewBody"><tr><td colspan="6"><div class="bank-empty">A pré-visualização aparecerá aqui.</div></td></tr></tbody></table></div></div>
+        <div class="bank-card"><h3>Importar extrato</h3><p>Leia o arquivo — OFX ou PDF do Itaú/Caixa —, confira e só depois grave no Supabase.</p><div class="bank-field"><label for="bankAccountSelect">Conta</label><select id="bankAccountSelect"><option value="">Carregando contas...</option></select></div><div class="bank-field"><label for="ofxFile">Arquivo (OFX ou PDF)</label><input id="ofxFile" type="file" accept=".ofx,application/x-ofx,text/plain,.pdf,application/pdf"></div><div class="bank-actions"><button class="btn btn-light" id="readOfxBtn">Pré-visualizar</button><button class="btn btn-primary" id="confirmOfxBtn" disabled>Confirmar importação</button></div><div id="ofxImportStatus" class="bank-status">Nenhum arquivo selecionado.</div></div>
+        <div class="bank-card"><h3>Pré-visualização</h3><p id="ofxPeriodLabel">Selecione um arquivo OFX ou PDF.</p><div class="bank-stats"><div class="bank-stat"><span>Movimentações</span><b id="ofxCount">0</b></div><div class="bank-stat"><span>Créditos</span><b id="ofxCredits">R$ 0,00</b></div><div class="bank-stat"><span>Débitos</span><b id="ofxDebits">R$ 0,00</b></div><div class="bank-stat"><span>Duplicadas</span><b id="ofxDuplicates">0</b></div></div><div id="ofxConferencia" class="bank-status" style="display:none"></div><div id="ofxFuturos" style="display:none;margin:16px 0"><div class="statement-section-title">Lançamentos futuros (agendados)</div><div id="ofxFuturosLista" class="projected-list"></div><div class="bank-actions"><button class="btn btn-light" id="ofxCreateFuturosBtn" disabled>Criar como previstos</button></div></div><div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th>Identificador</th><th>Status</th></tr></thead><tbody id="ofxPreviewBody"><tr><td colspan="6"><div class="bank-empty">A pré-visualização aparecerá aqui.</div></td></tr></tbody></table></div></div>
       </div>
     </section>
     <section id="reconciliation" class="section">
@@ -2829,9 +2829,372 @@ function esc(v){return String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&
 function tag(b,t){const m=String(b||"").match(new RegExp("<"+t+">\\s*([^<\\r\\n]*)","i"));return m?m[1].trim():"";}
 function ofxD(r){const m=String(r||"").match(/^(\d{4})(\d{2})(\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:"";}
 function brd(i){const m=String(i||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:i||"";}
+
+/* ====================================================================
+   Importação de extrato em PDF — 18/11/2026
+   Dois bancos, dois desenhos de arquivo completamente diferentes:
+   o Itaú é uma tabela de cinco colunas; a Caixa é a tela do aplicativo
+   virada em PDF, em cartões verticais.
+   Os dois leitores foram validados contra a aritmética do próprio
+   extrato (os saldos impressos têm que fechar com a soma das
+   movimentações) usando os arquivos reais de nov/2026.
+   ==================================================================== */
+
+function extNum(t){
+  const s=String(t||"").replace(/\s| /g,"");
+  if(!/^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(s)&&!/^-?\d+,\d{2}$/.test(s))return null;
+  const n=Number(s.replace(/\./g,"").replace(",","."));
+  return Number.isFinite(n)?n:null;
+}
+function extIso(t){
+  const m=String(t||"").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m?`${m[3]}-${m[2]}-${m[1]}`:null;
+}
+/* agrupa os itens de texto do pdf.js em linhas, guardando o x de cada pedaço:
+   é o x que separa a coluna Valor da coluna Saldo */
+function extLinhas(itens){
+  const linhas=[];
+  for(const it of itens){
+    const texto=String(it.str||"").trim();
+    if(!texto)continue;
+    const x=it.transform[4],y=it.transform[5];
+    let l=linhas.find(z=>Math.abs(z.y-y)<=2.5);
+    if(!l){l={y,pedacos:[]};linhas.push(l);}
+    l.pedacos.push({texto,x});
+  }
+  for(const l of linhas)l.pedacos.sort((a,b)=>a.x-b.x);
+  linhas.sort((a,b)=>b.y-a.y);
+  return linhas;
+}
+async function extPaginas(file){
+  if(typeof pdfjsLib==="undefined")throw new Error("Biblioteca de leitura PDF não carregou.");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  const paginas=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const pg=await pdf.getPage(p);
+    paginas.push((await pg.getTextContent()).items);
+  }
+  return paginas;
+}
+
+/* ---- Itaú: tabela Data | Lançamentos | Descrição | Valor | Saldo ---- */
+function extColunasItau(linhas){
+  for(const l of linhas){
+    const ache=re=>l.pedacos.find(p=>re.test(p.texto));
+    const data=ache(/^Data$/i),tipo=ache(/^Lan[çc]amentos$/i);
+    const desc=ache(/^Descri/i),valor=ache(/^Valor/i),saldo=ache(/^Saldo/i);
+    if(data&&tipo&&desc&&valor&&saldo&&saldo.x>valor.x&&desc.x>tipo.x)
+      return {tipo:tipo.x-5,descricao:desc.x-5,saldo:(valor.x+saldo.x)/2+20};
+  }
+  return null;
+}
+function lerExtratoItauPDF(paginas){
+  const todas=paginas.map(extLinhas);
+  const texto=todas.flat().map(l=>l.pedacos.map(p=>p.texto).join(" ")).join("\n");
+  const per=texto.match(/(\d{2}\/\d{2}\/\d{4})\s*at[eé]\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const inicio=per?extIso(per[1]):null,fim=per?extIso(per[2]):null;
+  const mS=texto.match(/Saldo em conta\s+R\$\s*(-?[\d.]+,\d{2})/i);
+  const saldoFinal=mS?extNum(mS[1]):null;
+
+  let col=null;
+  for(const p of todas){const c=extColunasItau(p);if(c){col=c;break;}}
+  if(!col)throw new Error("Não reconheci o cabeçalho do extrato Itaú (Data / Lançamentos / Descrição / Valor / Saldo).");
+
+  const movimentos=[],futuros=[],saldos=[];
+  let emFuturos=false,emLanc=false,atual=null,cont=0;
+  const porColuna=linha=>{
+    const t=[],d=[];
+    for(const p of linha.pedacos){
+      if(extNum(p.texto)!==null||extIso(p.texto))continue;
+      if(p.x>=col.descricao)d.push(p.texto);else if(p.x>=col.tipo)t.push(p.texto);
+    }
+    return {tipo:t.join(" "),descricao:d.join(" ")};
+  };
+  const fechar=()=>{
+    if(!atual)return;
+    const limpa=s=>s.replace(/\s+/g," ").trim();
+    atual.memo=limpa(`${limpa(atual.tipo)} ${limpa(atual.descricao)}`)||"Sem descrição";
+    (atual.futuro?futuros:movimentos).push(atual);
+    atual=null;
+  };
+
+  for(const pagina of todas){
+    for(const linha of pagina){
+      const txt=linha.pedacos.map(p=>p.texto).join(" ").replace(/\s+/g," ").trim();
+      if(/^Lan[çc]amentos futuros/i.test(txt)||/^Sa[ií]das futuras/i.test(txt)){fechar();emFuturos=true;emLanc=true;continue;}
+      if(/^Lan[çc]amentos$/i.test(txt)){fechar();emFuturos=false;emLanc=true;continue;}
+      if(/^Posi[cç][aã]o consolidada/i.test(txt)||/^Limites$/i.test(txt)){fechar();emLanc=false;continue;}
+      if(!emLanc)continue;
+      if(/^Data\b/.test(txt)&&/Saldo/.test(txt)){fechar();continue;}
+
+      const data=extIso(linha.pedacos[0]&&linha.pedacos[0].texto);
+      const nums=linha.pedacos.map(p=>({n:extNum(p.texto),x:p.x})).filter(o=>o.n!==null);
+      const valor=nums.find(o=>o.x<col.saldo),saldo=nums.find(o=>o.x>=col.saldo);
+
+      if(data&&!valor&&saldo){fechar();saldos.push({data,saldo:saldo.n});continue;}
+      if(data&&valor){fechar();const c=porColuna(linha);atual={data,valor:valor.n,tipo:c.tipo,descricao:c.descricao,futuro:emFuturos};cont=0;continue;}
+      if(!data&&atual&&cont<4){const c=porColuna(linha);if(c.tipo||c.descricao){atual.tipo+=" "+c.tipo;atual.descricao+=" "+c.descricao;cont++;}continue;}
+    }
+  }
+  fechar();
+  /* agendamento que escapou do bloco de futuros: data depois do fim do período */
+  if(fim)for(let i=movimentos.length-1;i>=0;i--)if(movimentos[i].data>fim)futuros.push(...movimentos.splice(i,1));
+
+  return {banco:"Itaú",inicio,fim,movimentos,futuros,
+          conferencia:extConfereItau(movimentos,saldos,saldoFinal)};
+}
+/* o Itaú imprime saldo negativo sem o sinal; o único com sinal é o do
+   cabeçalho, que vira a âncora da conta para trás */
+function extConfereItau(movimentos,saldos,saldoFinal){
+  if(saldoFinal===null||!saldos.length)return {possivel:false,passos:[],fecham:0,total:0};
+  const porDia=new Map();
+  for(const m of movimentos)porDia.set(m.data,(porDia.get(m.data)||0)+m.valor);
+  const ord=[...saldos].sort((a,b)=>b.data.localeCompare(a.data));
+  const passos=[];let calc=saldoFinal;
+  for(let i=0;i<ord.length;i++){
+    passos.push({data:ord[i].data,impresso:ord[i].saldo,calculado:calc,
+                 fecha:Math.abs(Math.abs(calc)-Math.abs(ord[i].saldo))<0.005});
+    const prox=ord[i+1];if(!prox)break;
+    let soma=0;for(const [dia,v] of porDia)if(dia>prox.data&&dia<=ord[i].data)soma+=v;
+    calc=calc-soma;
+  }
+  return {possivel:true,passos,fecham:passos.filter(p=>p.fecha).length,total:passos.length};
+}
+
+/* ---- Caixa: cartões verticais, data por extenso, "Saldo do dia" ---- */
+const EXT_MESES={janeiro:"01",fevereiro:"02","março":"03",marco:"03",abril:"04",maio:"05",junho:"06",julho:"07",agosto:"08",setembro:"09",outubro:"10",novembro:"11",dezembro:"12"};
+function extDataTitulo(t){
+  const m=String(t||"").match(/^(\d{1,2})\s+de\s+([A-Za-zçÇãÃéÉêÊ]+)\s+de\s+(\d{4})/i);
+  if(!m)return null;
+  const mes=EXT_MESES[m[2].toLowerCase()];
+  return mes?`${m[3]}-${mes}-${String(m[1]).padStart(2,"0")}`:null;
+}
+function extValorCaixa(t){
+  const m=String(t||"").match(/^(-\s*)?R\$\s*([\d.]+,\d{2})$/);
+  if(!m)return null;
+  const n=extNum(m[2]);
+  return n===null?null:(m[1]?-n:n);
+}
+function lerExtratoCaixaPDF(paginas){
+  const linhas=paginas.flatMap(extLinhas);
+  const dias=[];let dia=null,saldoAnterior=null;
+  for(const linha of linhas){
+    const txt=linha.pedacos.map(p=>p.texto).join(" ").replace(/\s+/g," ").trim();
+    if(!txt)continue;
+    const dt=extDataTitulo(txt);
+    if(dt){dia={data:dt,movimentos:[],fragmentos:[],saldo:null};dias.push(dia);continue;}
+    if(/^Saldo do dia/i.test(txt)){if(dia)dia.saldo=extValorCaixa(txt.replace(/^Saldo do dia\s*/i,""));continue;}
+    if(/^Saldo Anterior/i.test(txt)){saldoAnterior=extValorCaixa(txt.replace(/^Saldo Anterior\s*/i,""));continue;}
+    if(/^(Extrato por|Ordenar|Compartilhar|Voltar)/i.test(txt))continue;
+    if(!dia)continue;
+    const v=extValorCaixa(txt);
+    if(v!==null){dia.movimentos.push({y:linha.y,valor:v});continue;}
+    if(/^\d{1,2}[A-Z]{3}$/.test(txt))continue;      // etiqueta "18NOV"
+    dia.fragmentos.push({y:linha.y,texto:txt});
+  }
+  /* a descrição aparece antes E depois do valor, com a etiqueta no meio;
+     cada pedaço vai para o movimento cujo valor está mais perto na vertical */
+  const movimentos=[];
+  for(const d of dias){
+    if(!d.movimentos.length)continue;
+    const baldes=d.movimentos.map(()=>[]);
+    for(const f of d.fragmentos){
+      let melhor=0,dist=Infinity;
+      d.movimentos.forEach((m,i)=>{const dd=Math.abs(m.y-f.y);if(dd<dist){dist=dd;melhor=i;}});
+      baldes[melhor].push(f);
+    }
+    d.movimentos.forEach((m,i)=>{
+      const memo=baldes[i].sort((a,b)=>b.y-a.y).map(f=>f.texto).join(" ").replace(/\s+/g," ").trim();
+      movimentos.push({data:d.data,valor:m.valor,memo:memo||"Sem descrição"});
+    });
+  }
+  const datas=dias.map(d=>d.data).sort();
+  const saldos=dias.filter(d=>d.saldo!==null).map(d=>({data:d.data,saldo:d.saldo}));
+  return {banco:"Caixa",inicio:datas[0]||null,fim:datas[datas.length-1]||null,
+          movimentos,futuros:[],conferencia:extConfereCaixa(movimentos,saldos,saldoAnterior)};
+}
+/* a Caixa imprime o sinal e traz "Saldo Anterior": confere para frente */
+function extConfereCaixa(movimentos,saldos,saldoAnterior){
+  if(saldoAnterior===null||!saldos.length)return {possivel:false,passos:[],fecham:0,total:0};
+  const porDia=new Map();
+  for(const m of movimentos)porDia.set(m.data,(porDia.get(m.data)||0)+m.valor);
+  let calc=saldoAnterior;
+  const passos=[...saldos].sort((a,b)=>a.data.localeCompare(b.data)).map(l=>{
+    calc=calc+(porDia.get(l.data)||0);
+    return {data:l.data,impresso:l.saldo,calculado:calc,fecha:Math.abs(calc-l.saldo)<0.005};
+  });
+  return {possivel:true,passos,fecham:passos.filter(p=>p.fecha).length,total:passos.length};
+}
+
+/* ---- identificador fabricado ----
+   PDF não traz FITID, e a tabela tem unique (bank_account_id, fitid).
+   O nº de ocorrência é obrigatório: no extrato real de 01/11 existem dois
+   boletos iguais, mesma data, mesmo valor, mesma descrição - sem ele o
+   segundo sumiria em silêncio. */
+function extFitid(m,ordem){
+  const memo=String(m.memo||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim().slice(0,60);
+  return ["pdf",m.data,Number(m.valor).toFixed(2),memo,ordem].join("|");
+}
+
+async function lerPdfExtrato(file){
+  const paginas=await extPaginas(file);
+  const texto=paginas.flat().map(i=>String(i.str||"")).join(" ");
+  let r;
+  if(/Extrato por Per[ií]odo/i.test(texto)||/Saldo do dia/i.test(texto))r=lerExtratoCaixaPDF(paginas);
+  else if(/Extrato conta corrente/i.test(texto)||/Lan[çc]amentos/i.test(texto))r=lerExtratoItauPDF(paginas);
+  else throw new Error("Não reconheci o banco deste PDF. Hoje leio extrato do Itaú e da Caixa.");
+
+  if(!r.movimentos.length)throw new Error("Li o PDF mas não achei nenhuma movimentação.");
+
+  const vistos=new Map();
+  const transactions=r.movimentos.map(m=>{
+    const base=extFitid(m,0),ordem=(vistos.get(base)||0);
+    vistos.set(base,ordem+1);
+    return {fitid:extFitid(m,ordem),date:m.data,memo:m.memo,
+            type:m.valor>0?"credit":"debit",amount:m.valor,duplicate:false};
+  });
+  return {origem:"pdf",banco:r.banco,bankId:"",start:r.inicio,end:r.fim,
+          transactions,futuros:r.futuros||[],conferencia:r.conferencia};
+}
+
+/* ---- leitura do arquivo escolhido, OFX ou PDF ---- */
+async function lerArquivoExtrato(file){
+  const ehPdf=/\.pdf$/i.test(file.name)||file.type==="application/pdf";
+  if(!ehPdf){const p=parseOFX(await file.text());p.origem="ofx";p.futuros=[];p.conferencia={possivel:false,passos:[],fecham:0,total:0};return p;}
+  return lerPdfExtrato(file);
+}
+
+/* ---- futuros do extrato viram lançamentos previstos ---- */
+async function criarFuturosComoPrevistos(){
+  const st=document.getElementById("ofxImportStatus");
+  const futuros=(ofxPreview&&ofxPreview.futuros)||[];
+  if(!futuros.length)return;
+  const btn=document.getElementById("ofxCreateFuturosBtn");
+  btn.disabled=true;btn.textContent="Criando...";
+  try{
+    const u=(await sb.auth.getUser()).data.user;
+    if(!u)throw new Error("Sessão não encontrada.");
+    const datas=futuros.map(f=>f.data).sort();
+    const janela=d=>{const x=new Date(d+"T12:00:00Z");return x;};
+    const de=new Date(janela(datas[0]).getTime()-5*86400000).toISOString().slice(0,10);
+    const ate=new Date(janela(datas[datas.length-1]).getTime()+5*86400000).toISOString().slice(0,10);
+
+    const {data:existentes,error}=await sb.from("transactions")
+      .select("transaction_date,description,amount,status")
+      .eq("family_id",FAMILY_ID)
+      .gte("transaction_date",de).lte("transaction_date",ate);
+    if(error)throw error;
+
+    /* guarda contra duplicar: mesmo valor em qualquer lançamento a até 5 dias
+       de distância, previsto ou realizado. A fatura do cartão é o caso real -
+       o banco agenda o débito para 23/11 e o lançamento dela já existe no
+       dia 21, com o mesmo valor. */
+    const perto=(a,b)=>Math.abs((Date.parse(a+"T12:00:00Z")-Date.parse(b+"T12:00:00Z"))/86400000)<=5;
+    const novos=[],pulados=[];
+    for(const f of futuros){
+      const igual=(existentes||[]).find(e=>Math.abs(Math.abs(Number(e.amount))-Math.abs(f.valor))<0.005&&perto(e.transaction_date,f.data));
+      if(igual){pulados.push(`${brd(f.data)} ${f.memo} — já existe ${igual.status} de ${fmtBRL.format(Math.abs(Number(igual.amount)))} em ${brd(igual.transaction_date)}`);continue;}
+      novos.push({family_id:FAMILY_ID,transaction_date:f.data,
+        description:f.memo.slice(0,180),type:f.valor>0?"income":"expense",
+        category:"Outros",person:"Família",status:"previsto",recurring:false,
+        amount:Math.abs(f.valor),source:"extrato_futuro",
+        created_by:u.id,updated_by:u.id});
+    }
+    if(novos.length){const ins=await sb.from("transactions").insert(novos);if(ins.error)throw ins.error;}
+    st.className="bank-status ok";
+    st.innerHTML=`${novos.length} agendamento(s) criado(s) como previsto na categoria "Outros".`
+      +(pulados.length?`<br><br><b>${pulados.length} pulado(s) para não duplicar:</b><br>`+pulados.map(esc).join("<br>"):"");
+    btn.textContent=`${novos.length} criados`;
+    if(typeof loadFromSupabase==="function")await loadFromSupabase();
+  }catch(e){
+    st.className="bank-status error";st.textContent="Não criei nada: "+e.message;
+    btn.disabled=false;btn.textContent="Criar como previstos";
+  }
+}
 function parseOFX(text){const n=String(text||"").replace(/\r/g,""),blocks=n.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi)||[];const transactions=blocks.map(b=>{const a=Number(tag(b,"TRNAMT").replace(",",".")),rt=tag(b,"TRNTYPE").toUpperCase();return{fitid:tag(b,"FITID"),date:ofxD(tag(b,"DTPOSTED")),memo:tag(b,"MEMO")||"Sem descrição",type:(rt==="CREDIT"||a>0)?"credit":"debit",amount:Number.isFinite(a)?a:0,duplicate:false};}).filter(x=>x.fitid&&x.date);return{bankId:tag(n,"BANKID"),start:ofxD(tag(n,"DTSTART")),end:ofxD(tag(n,"DTEND")),transactions};}
 async function loadBankAccounts(){const {data,error}=await sb.from("bank_accounts").select("id,nickname,bank_name,bank_code").eq("family_id",FAMILY_ID).eq("active",true).order("nickname");if(error){console.error(error);return;}bankAccountsCache=data||[];const itau=bankAccountsCache.filter(a=>String(a.bank_code)==="0341"||/itaú|itau/i.test(a.bank_name||"")),opts=itau.map(a=>`<option value="${a.id}">${esc(a.nickname)}</option>`).join("");document.getElementById("bankAccountSelect").innerHTML='<option value="">Selecione a conta...</option>'+opts;document.getElementById("reconAccount").innerHTML='<option value="">Todas as contas Itaú</option>'+opts;}
-async function previewOFX(){const aid=document.getElementById("bankAccountSelect").value,f=document.getElementById("ofxFile").files[0],st=document.getElementById("ofxImportStatus"),btn=document.getElementById("confirmOfxBtn");btn.disabled=true;if(!aid){st.className="bank-status warn";st.textContent="Selecione a conta.";return;}if(!f){st.className="bank-status warn";st.textContent="Selecione o OFX.";return;}try{const p=parseOFX(await f.text());if(!p.transactions.length)throw new Error("Nenhuma movimentação válida.");const {data,error}=await sb.from("bank_statement_transactions").select("fitid").eq("bank_account_id",aid).in("fitid",p.transactions.map(x=>x.fitid));if(error)throw error;const dup=new Set((data||[]).map(x=>x.fitid));p.transactions.forEach(x=>x.duplicate=dup.has(x.fitid));p.accountId=aid;p.fileName=f.name;ofxPreview=p;document.getElementById("ofxCount").textContent=p.transactions.length;document.getElementById("ofxCredits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDebits").textContent=fmtBRL.format(p.transactions.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0));document.getElementById("ofxDuplicates").textContent=dup.size;document.getElementById("ofxPeriodLabel").textContent=`Período: ${brd(p.start)} a ${brd(p.end)}`;document.getElementById("ofxPreviewBody").innerHTML=p.transactions.map(x=>`<tr class="${x.duplicate?"duplicate":""}"><td>${brd(x.date)}</td><td>${esc(x.memo)}</td><td>${x.type==="credit"?"Crédito":"Débito"}</td><td class="${x.type==="credit"?"credit":"debit"}">${fmtBRL.format(x.amount)}</td><td>${esc(x.fitid)}</td><td>${x.duplicate?"JÁ IMPORTADO":"NOVO"}</td></tr>`).join("");const novos=p.transactions.filter(x=>!x.duplicate).length;st.className=novos?"bank-status ok":"bank-status warn";st.textContent=novos?`${novos} novas movimentações prontas.`:"Tudo já foi importado.";btn.disabled=!novos;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
+async function previewOFX(){
+  const aid=document.getElementById("bankAccountSelect").value;
+  const f=document.getElementById("ofxFile").files[0];
+  const st=document.getElementById("ofxImportStatus");
+  const btn=document.getElementById("confirmOfxBtn");
+  const caixaFut=document.getElementById("ofxFuturos");
+  const caixaConf=document.getElementById("ofxConferencia");
+  btn.disabled=true;caixaFut.style.display="none";caixaConf.style.display="none";
+  if(!aid){st.className="bank-status warn";st.textContent="Selecione a conta.";return;}
+  if(!f){st.className="bank-status warn";st.textContent="Selecione o arquivo (OFX ou PDF).";return;}
+  try{
+    st.className="bank-status";st.textContent="Lendo o arquivo...";
+    const p=await lerArquivoExtrato(f);
+    if(!p.transactions.length)throw new Error("Nenhuma movimentação válida.");
+
+    /* já importado: pelo FITID (OFX) e, no PDF, também por data+valor+descrição,
+       porque o identificador do PDF é fabricado e nunca bate com o do OFX -
+       sem isso, importar o mesmo período nos dois formatos duplicaria tudo */
+    const {data:jaTem,error}=await sb.from("bank_statement_transactions")
+      .select("fitid,transaction_date,amount,memo")
+      .eq("bank_account_id",aid)
+      .gte("transaction_date",p.start||"1900-01-01")
+      .lte("transaction_date",p.end||"2999-12-31");
+    if(error)throw error;
+    const porFitid=new Set((jaTem||[]).map(x=>x.fitid));
+    const chave=(d,v,m)=>`${d}|${Number(v).toFixed(2)}|${String(m||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim().slice(0,40)}`;
+    const porConteudo=new Map();
+    for(const x of jaTem||[]){const k=chave(x.transaction_date,x.amount,x.memo);porConteudo.set(k,(porConteudo.get(k)||0)+1);}
+    const usados=new Map();
+    for(const x of p.transactions){
+      if(porFitid.has(x.fitid)){x.duplicate=true;continue;}
+      const k=chave(x.date,x.amount,x.memo),n=(usados.get(k)||0);
+      if(n<(porConteudo.get(k)||0)){x.duplicate=true;usados.set(k,n+1);}
+    }
+
+    p.accountId=aid;p.fileName=f.name;ofxPreview=p;
+
+    const cred=p.transactions.filter(x=>x.type==="credit").reduce((s,x)=>s+Math.abs(x.amount),0);
+    const deb=p.transactions.filter(x=>x.type==="debit").reduce((s,x)=>s+Math.abs(x.amount),0);
+    document.getElementById("ofxCount").textContent=p.transactions.length;
+    document.getElementById("ofxCredits").textContent=fmtBRL.format(cred);
+    document.getElementById("ofxDebits").textContent=fmtBRL.format(deb);
+    document.getElementById("ofxDuplicates").textContent=p.transactions.filter(x=>x.duplicate).length;
+    document.getElementById("ofxPeriodLabel").textContent=
+      `${p.origem==="pdf"?"PDF "+p.banco:"OFX"} • Período: ${brd(p.start)} a ${brd(p.end)}`;
+    document.getElementById("ofxPreviewBody").innerHTML=p.transactions.map(x=>
+      `<tr class="${x.duplicate?"duplicate":""}"><td>${brd(x.date)}</td><td>${esc(x.memo)}</td><td>${x.type==="credit"?"Crédito":"Débito"}</td><td class="${x.type==="credit"?"credit":"debit"}">${fmtBRL.format(x.amount)}</td><td style="font-size:11px">${esc(String(x.fitid).slice(0,28))}</td><td>${x.duplicate?"JÁ IMPORTADO":"NOVO"}</td></tr>`).join("");
+
+    /* conferência pelos saldos impressos no próprio extrato: se a soma das
+       movimentações não reproduz os saldos, o leitor errou e a importação
+       não pode ser oferecida */
+    let travado=false;
+    if(p.conferencia&&p.conferencia.possivel){
+      const c=p.conferencia,ok=c.fecham===c.total;
+      travado=!ok;
+      caixaConf.style.display="";
+      caixaConf.className="bank-status "+(ok?"ok":"error");
+      caixaConf.innerHTML=ok
+        ?`Conferência: os ${c.total} saldos impressos no extrato fecham com a soma das movimentações.`
+        :`<b>Conferência falhou</b> em ${c.total-c.fecham} de ${c.total} pontos. Não vou oferecer a importação: `
+          +`o leitor perdeu ou leu errado alguma linha.<br>`
+          +c.passos.filter(x=>!x.fecha).map(x=>`${brd(x.data)}: calculado ${fmtBRL.format(x.calculado)}, impresso ${fmtBRL.format(x.impresso)}`).map(esc).join("<br>");
+    }
+
+    if(p.futuros&&p.futuros.length){
+      const total=p.futuros.reduce((s,x)=>s+x.valor,0);
+      caixaFut.style.display="";
+      document.getElementById("ofxFuturosLista").innerHTML=
+        `<p class="card-file-note" style="margin:0 0 10px">Estes <b>${p.futuros.length}</b> são agendamentos que ainda não aconteceram (${fmtBRL.format(total)}). Não entram no extrato importado.</p>`
+        +p.futuros.map(x=>`<div class="projected-row"><span>${brd(x.data)} — ${esc(x.memo)}</span><strong class="${x.valor<0?"negative":"positive"}">${fmtBRL.format(x.valor)}</strong></div>`).join("");
+      const b=document.getElementById("ofxCreateFuturosBtn");
+      b.disabled=false;b.textContent="Criar como previstos";
+    }
+
+    const novos=p.transactions.filter(x=>!x.duplicate).length;
+    if(travado){st.className="bank-status error";st.textContent="Leitura não conferiu — veja a conferência acima.";return;}
+    st.className=novos?"bank-status ok":"bank-status warn";
+    st.textContent=novos?`${novos} novas movimentações prontas.`:"Tudo já foi importado.";
+    btn.disabled=!novos;
+  }catch(e){st.className="bank-status error";st.textContent=e.message;}
+}
 async function importOFX(){const rows=ofxPreview?.transactions.filter(x=>!x.duplicate)||[];if(!rows.length)return;const st=document.getElementById("ofxImportStatus");try{const {data:b,error:be}=await sb.from("bank_import_batches").insert({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,file_name:ofxPreview.fileName,period_start:ofxPreview.start||null,period_end:ofxPreview.end||null,imported_by:currentAuthUser.id,status:"confirmed"}).select("id").single();if(be)throw be;const payload=rows.map(x=>({family_id:FAMILY_ID,bank_account_id:ofxPreview.accountId,import_batch_id:b.id,fitid:x.fitid,transaction_date:x.date,transaction_type:x.type,amount:x.amount,memo:x.memo,reconciliation_status:"unmatched"}));const {error}=await sb.from("bank_statement_transactions").insert(payload);if(error)throw error;st.className="bank-status ok";st.textContent=`${rows.length} movimentações importadas. Abra Conciliação.`;document.getElementById("confirmOfxBtn").disabled=true;}catch(e){st.className="bank-status error";st.textContent=e.message;}}
 function dd(a,b){return Math.round(Math.abs(new Date(a+"T00:00:00Z")-new Date(b+"T00:00:00Z"))/86400000);}
 function score(b,t){const typ=b.transaction_type==="credit"?"income":"expense";if(t.type!==typ)return-999;const dif=Math.abs(Math.abs(b.amount)-Math.abs(t.value));if(dif>5)return-500;const days=dd(b.transaction_date,t.date);if(days>10)return-100;return 100-dif*5-days*4;}
@@ -2968,7 +3331,7 @@ document.getElementById("reconCreateType")?.addEventListener("change",()=>{
 
 async function ignoreTx(card){await sb.from("bank_statement_transactions").update({reconciliation_status:"ignored",matched_transaction_id:null}).eq("id",card.dataset.id);await loadRecon();}
 async function undoTx(card){const b=reconciliationRows.find(x=>x.id===card.dataset.id);if(b.matched_transaction_id)await sb.from("transactions").update({bank_statement_transaction_id:null,updated_by:currentAuthUser.id}).eq("id",b.matched_transaction_id);await sb.from("bank_statement_transactions").update({reconciliation_status:"unmatched",matched_transaction_id:null}).eq("id",b.id);await loadFromSupabase();await loadRecon();}
-document.getElementById("readOfxBtn")?.addEventListener("click",previewOFX);document.getElementById("confirmOfxBtn")?.addEventListener("click",importOFX);document.getElementById("loadReconBtn")?.addEventListener("click",loadRecon);
+document.getElementById("readOfxBtn")?.addEventListener("click",previewOFX);document.getElementById("confirmOfxBtn")?.addEventListener("click",importOFX);document.getElementById("ofxCreateFuturosBtn")?.addEventListener("click",criarFuturosComoPrevistos);document.getElementById("loadReconBtn")?.addEventListener("click",loadRecon);
 
 async function initAuth(){
   fillCategorySelects(); fillMonthSelect();
