@@ -536,6 +536,77 @@
       background:#fff;border:1px solid var(--line);border-radius:16px;
       padding:14px;margin-bottom:12px;box-shadow:var(--shadow);
     }
+
+    /* 11a. FECHADO: só descrição, data, status e valor, como um extrato.
+            Um toque abre o cartão para editar (classe .aberto, posta pelo
+            trecho no fim do arquivo). Dez campos abertos o tempo todo davam
+            420px por lançamento; assim são ~80px. */
+    .table-scroll tr:not(.aberto){
+      grid-template-columns:1fr auto 12px;
+      gap:2px 12px;align-items:center;padding:14px;
+      cursor:pointer;-webkit-tap-highlight-color:transparent;
+    }
+    .table-scroll tr:not(.aberto) td{display:none}
+    .table-scroll tr:not(.aberto) td:nth-child(3){display:block;grid-area:1/1;border:0;padding:0;margin:0;min-width:0;overflow:hidden}
+    /* descrição longa corta com reticências em vez de passar por cima do valor */
+    .table-scroll tr:not(.aberto) td:nth-child(3) input,
+    .table-scroll tr:not(.aberto) td:nth-child(3) strong{
+      display:block;width:100%;min-width:0;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .table-scroll tr:not(.aberto) td:nth-child(9){display:block;grid-area:1/2;padding:0;text-align:right}
+    .table-scroll tr:not(.aberto) td:nth-child(2){display:block;grid-area:2/1;padding:0}
+    .table-scroll tr:not(.aberto) td:nth-child(7){display:block;grid-area:2/2;padding:0;text-align:right}
+    .table-scroll tr:not(.aberto) td::before{content:none!important}
+    /* campo fechado tem cara de texto, não de formulário; pointer-events
+       desligado para o toque abrir o cartão em vez de abrir o teclado */
+    .table-scroll tr:not(.aberto) td input,
+    .table-scroll tr:not(.aberto) td select{
+      border:0;background:transparent;padding:0;min-height:0;width:auto;
+      pointer-events:none;-webkit-appearance:none;appearance:none;
+      color:inherit;font-weight:inherit;
+    }
+    .table-scroll tr:not(.aberto) td:nth-child(3),
+    .table-scroll tr:not(.aberto) td:nth-child(3) input{font-size:15px;font-weight:800;color:var(--ink)}
+    .table-scroll tr:not(.aberto) td:nth-child(9),
+    .table-scroll tr:not(.aberto) td:nth-child(9) input,
+    .table-scroll tr:not(.aberto) td:nth-child(9) strong{font-size:15px;font-weight:900;text-align:right}
+    .table-scroll tr:not(.aberto) td:nth-child(2),
+    .table-scroll tr:not(.aberto) td:nth-child(2) input,
+    .table-scroll tr:not(.aberto) td:nth-child(7),
+    .table-scroll tr:not(.aberto) td:nth-child(7) select{font-size:12px;font-weight:600;color:var(--muted)}
+    /* fechado, data e valor saem do campo e viram texto já formatado
+       (dd/mm/aaaa e R$), escrito nos data- pelo trecho do fim do arquivo:
+       input type=date mostra o ícone de calendário e o type=number mostra
+       22064.36 em vez de R$ 22.064,36 */
+    .table-scroll tr:not(.aberto) td:nth-child(2) input,
+    .table-scroll tr:not(.aberto) td:nth-child(9) input{display:none}
+    .table-scroll tr:not(.aberto) td:nth-child(2)::before{
+      content:attr(data-dia)!important;
+      font-size:12px;font-weight:600;color:var(--muted);
+      text-transform:none;letter-spacing:0;
+    }
+    .table-scroll tr:not(.aberto) td:nth-child(9)::before{
+      content:attr(data-brl)!important;
+      font-size:15px;font-weight:900;color:var(--ink);
+      text-transform:none;letter-spacing:0;
+    }
+    .table-scroll tr:not(.aberto)::after{
+      content:"›";grid-area:1/3/3/4;align-self:center;
+      color:var(--muted);font-size:20px;font-weight:900;line-height:1;
+    }
+    .table-scroll tr:not(.aberto):active{background:#f8f9fa}
+    /* aberto: a mesma seta vira botão de fechar no canto. Pseudo-elemento
+       não é alvo de evento, então o toque conta como toque na linha e o
+       mesmo handler fecha o cartão. */
+    .table-scroll tr{position:relative}
+    .table-scroll tr.aberto{border-color:var(--blue);box-shadow:0 10px 25px rgba(0,156,235,.12)}
+    .table-scroll tr.aberto::after{
+      content:"⌃";position:absolute;top:8px;right:8px;
+      width:40px;height:40px;display:grid;place-items:center;
+      color:var(--muted);font-size:18px;font-weight:900;line-height:1;
+    }
+    .table-scroll tr.aberto td:nth-child(3){padding-right:44px}
     /* rótulo em cima do campo e dois campos por linha: empilhar tudo numa
        coluna só deixava o cartão com mais de 500px de altura */
     .table-scroll td{
@@ -2981,6 +3052,63 @@ if(appRoot && sidebarToggle){
     setSidebarCollapsed(!appRoot.classList.contains("sidebar-collapsed"));
   });
 }
+</script>
+<script>
+/* Celular: o cartão de lançamento nasce fechado (descrição, data, status e
+   valor) e um toque o abre para editar. Nada aqui toca em state nem na
+   gravação: só liga e desliga a classe .aberto, que o CSS usa.
+   O listener fica no #txBody, que não é recriado, e um MutationObserver
+   devolve a classe aos cartões que estavam abertos quando a lista é
+   redesenhada depois de uma edição. */
+(function(){
+  var corpo=document.getElementById("txBody");
+  if(!corpo)return;
+  var noCelular=function(){return window.matchMedia("(max-width:680px)").matches;};
+  var abertos=new Set();
+  var moeda=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+
+  /* data e valor formatados para o cartão fechado, guardados em data-
+     para o CSS mostrar. Só lê o DOM e escreve atributo de apresentação. */
+  function rotular(){
+    corpo.querySelectorAll("tr[data-id]").forEach(function(tr){
+      var celulas=tr.children;
+      var campoData=tr.querySelector('[data-field="date"]');
+      if(campoData&&campoData.value&&celulas[1]){
+        var p=campoData.value.split("-");
+        celulas[1].dataset.dia=p[2]+"/"+p[1]+"/"+p[0];
+      }
+      var campoValor=tr.querySelector('[data-field="value"]');
+      if(campoValor&&celulas[8]){
+        var n=Number(campoValor.value);
+        celulas[8].dataset.brl=isNaN(n)?"":moeda.format(n);
+      }
+    });
+  }
+
+  corpo.addEventListener("click",function(ev){
+    if(!noCelular())return;
+    if(ev.target.closest("input,select,textarea,button,label,a"))return;
+    var tr=ev.target.closest("tr[data-id]");
+    if(!tr||tr.classList.contains("card-detail-row"))return;
+    var id=String(tr.dataset.id);
+    if(tr.classList.toggle("aberto"))abertos.add(id);
+    else abertos.delete(id);
+  });
+
+  corpo.addEventListener("change",function(ev){
+    if(ev.target.matches('[data-field="value"],[data-field="date"]'))rotular();
+  });
+
+  new MutationObserver(function(){
+    rotular();
+    if(!abertos.size)return;
+    corpo.querySelectorAll("tr[data-id]").forEach(function(tr){
+      if(abertos.has(String(tr.dataset.id)))tr.classList.add("aberto");
+    });
+  }).observe(corpo,{childList:true});
+
+  rotular();
+})();
 </script>
 </body>
 </html>
